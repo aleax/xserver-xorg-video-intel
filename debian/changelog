@@ -1,3 +1,9 @@
+xserver-xorg-video-i810 (1:1.5.1.0-2) unstable; urgency=low
+
+  * Upload to modular
+
+ -- David Nusinow <dnusinow@debian.org>  Sun, 26 Mar 2006 20:25:40 -0500
+
 xserver-xorg-video-i810 (1:1.5.1.0-1) experimental; urgency=low
 
   * New upstream release
