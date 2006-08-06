@@ -39,13 +39,18 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef _INTEL_COMMON_H_
 #define _INTEL_COMMON_H_
 
-#ifdef __GNUC__
+/* Provide substitutes for gcc's __FUNCTION__ on other compilers */
+#ifndef __GNUC__
+# if defined(__STDC__) && (__STDC_VERSION__>=199901L) /* C99 */
+#  define __FUNCTION__ __func__
+# else
+#  define __FUNCTION__ ""
+# endif
+#endif
+
+
 #define PFX __FILE__,__LINE__,__FUNCTION__
 #define FUNCTION_NAME __FUNCTION__
-#else
-#define PFX __FILE__,__LINE__,""
-#define FUNCTION_NAME ""
-#endif
 
 #ifdef I830DEBUG
 #define MARKER() ErrorF("\n### %s:%d: >>> %s <<< ###\n\n", \
@@ -80,10 +85,10 @@ extern const char *I810ddcSymbols[];
 extern const char *I810fbSymbols[];
 extern const char *I810xaaSymbols[];
 extern const char *I810shadowFBSymbols[];
+extern const char *I810shadowSymbols[];
 #ifdef XF86DRI
 extern const char *I810driSymbols[];
 extern const char *I810drmSymbols[];
-extern const char *I810shadowSymbols[];
 #endif
 
 extern void I830DPRINTF_stub(const char *filename, int line,
@@ -131,7 +136,7 @@ extern void I830DPRINTF_stub(const char *filename, int line,
    RecPtr->LpRing->space -= ringused;					\
    if (outring & 0x07)							\
       ErrorF("ADVANCE_LP_RING: "					\
-	     "outring (0x%x) isn't on a QWord boundary", outring);	\
+	     "outring (0x%x) isn't on a QWord boundary\n", outring);	\
    OUTREG(LP_RING + RING_TAIL, outring);				\
 } while (0)
 
