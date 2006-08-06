@@ -1,3 +1,9 @@
+xserver-xorg-video-i810 (2:1.6.1-2) experimental; urgency=low
+
+  * Fix for botched upload. Identical to -1, which I built wrong.
+
+ -- David Nusinow <dnusinow@debian.org>  Sun,  6 Aug 2006 18:37:45 +0000
+
 xserver-xorg-video-i810 (2:1.6.1-1) experimental; urgency=low
 
   [ Andres Salomon ]
