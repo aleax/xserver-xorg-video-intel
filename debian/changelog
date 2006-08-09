@@ -1,3 +1,10 @@
+xserver-xorg-video-i810 (2:1.6.3-1) UNRELEASED; urgency=low
+
+  * New upstream release
+  * Add x11proto-xinerama-dev to build-dep
+
+ -- David Nusinow <dnusinow@debian.org>  Tue,  8 Aug 2006 22:01:25 +0000
+
 xserver-xorg-video-i810 (2:1.6.1-2) experimental; urgency=low
 
   * Fix for botched upload. Identical to -1, which I built wrong.
