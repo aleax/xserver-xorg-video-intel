@@ -1,3 +1,9 @@
+xserver-xorg-video-i810 (2:1.6.5-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- David Nusinow <dnusinow@debian.org>  Thu, 10 Aug 2006 22:53:34 +0000
+
 xserver-xorg-video-i810 (2:1.6.4-1) experimental; urgency=low
 
   * New upstream release
