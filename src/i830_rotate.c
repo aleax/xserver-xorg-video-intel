@@ -217,7 +217,6 @@ I915UpdateRotate (ScreenPtr      pScreen,
    drm_context_t myContext = 0;
 #endif
    Bool didLock = FALSE;
-   CARD32 format;
 
    if (I830IsPrimary(pScrn)) {
       pI8301 = pI830;
@@ -576,7 +575,7 @@ I830UpdateRotate (ScreenPtr      pScreen,
       OUT_RING(MI_FLUSH | MI_WRITE_DIRTY_STATE | MI_INVALIDATE_MAP_CACHE);
       OUT_RING(0x00000000);
       /* draw rect */
-      OUT_RING(STATE3D_DRAWING_RECTANGLE);
+      OUT_RING(_3DSTATE_DRAW_RECT_CMD);
       OUT_RING(0x00000000);	/* flags */
       OUT_RING(0x00000000);	/* ymin, xmin */
       OUT_RING((pScrn->virtualX - 1) | (pScrn->virtualY - 1) << 16); /* ymax, xmax */
@@ -584,7 +583,7 @@ I830UpdateRotate (ScreenPtr      pScreen,
       OUT_RING(MI_NOOP);
 
       /* front buffer */
-      OUT_RING(STATE3D_BUFFER_INFO);
+      OUT_RING(_3DSTATE_BUF_INFO_CMD);
       OUT_RING(0x03800000 | (((pI830->displayWidth * pI830->cpp) / 4) << 2));
       if (I830IsPrimary(pScrn))
 	 OUT_RING(pI830->FrontBuffer.Start);
