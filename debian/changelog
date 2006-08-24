@@ -1,4 +1,4 @@
-xserver-xorg-video-i810 (2:1.6.5-2) UNRELEASED; urgency=low
+xserver-xorg-video-i810 (2:1.6.5-2) experimental; urgency=low
 
   [ Drew Parsons ]
   *  Provides: xserver-xorg-video-1.0 not xserver-xorg-video.
@@ -7,7 +7,7 @@ xserver-xorg-video-i810 (2:1.6.5-2) UNRELEASED; urgency=low
   * Bump xserver (build-)depends epochs to 2: to deal with botched
     server upload
 
- -- David Nusinow <dnusinow@debian.org>  Tue, 22 Aug 2006 23:31:32 +0000
+ -- David Nusinow <dnusinow@debian.org>  Tue, 22 Aug 2006 23:46:32 +0000
 
 xserver-xorg-video-i810 (2:1.6.5-1) experimental; urgency=low
 
