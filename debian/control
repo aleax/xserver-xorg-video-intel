@@ -1,0 +1,40 @@
+Source: xserver-xorg-video-i810-modesetting
+Section: x11
+Priority: optional
+Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
+Uploaders: David Nusinow <dnusinow@debian.org>, Branden Robinson <branden@debian.org>, Drew Parsons <dparsons@debian.org>
+Build-Depends: debhelper (>= 5), pkg-config, quilt, xserver-xorg-dev (>= 2:1.1.1-1), x11proto-gl-dev, x11proto-video-dev, libdrm-dev, libgl1-mesa-dev | libgl-dev, libxvmc-dev (>= 1:1.0.1-1), x11proto-core-dev, x11proto-fonts-dev, x11proto-randr-dev, x11proto-render-dev, x11proto-xinerama-dev, libdrm-dev (>> 2.0), x11proto-xf86dri-dev
+Standards-Version: 3.7.2
+
+Package: xserver-xorg-video-i810-modesetting
+Architecture: alpha amd64 arm hppa hurd-i386 i386 ia64 kfreebsd-i386 m68k mips mipsel netbsd-i386 powerpc
+Depends: ${shlibs:Depends}, ${misc:Depends}, xserver-xorg-core (>= 2:1.1.1-1)
+Provides: xserver-xorg-video-1.0
+Conflicts: xserver-xorg-video-i810
+Replaces: xserver-xorg (<< 6.8.2-35), xserver-xorg-video-i810
+Description: X.Org X server -- Intel i8xx, i9xx display driver (modesetting)
+ This package is a development snapshot, it should be considered experimental.
+ Please use xserver-xorg-video-i810 instead if you have any doubts.
+ .
+ This package provides the development modesetting driver for the  Intel i8xx 
+ and i9xx family of chipsets, including i810, i815, i830, i845, 
+ i855, i865, i915, and i945 series chips.
+ .
+ This modesetting branch is designed to provide more control over the modes
+ available to the driver, without having to depend on the VideoBIOS.  It will 
+ write extra debugging text to the Xorg log file. The modesetting version may
+ become the stable i810 in the future but is provided here for your testing 
+ convenience.  Please use the stable i810 driver instead if you do not want 
+ to experiment with this driver.
+ .
+ This driver is still under heavy development and should therefore be 
+ considered experimental.  If in doubt, use the stable driver, 
+ xserver-xorg-video-i810, instead.
+ .
+ More information about X.Org can be found at:
+ <URL:http://xorg.freedesktop.org>
+ <URL:http://lists.freedesktop.org/mailman/listinfo/xorg>
+ .
+ This module may be found as the modesetting branch of module 
+ 'driver/xf86-video-intel' at
+ git://anongit.freedesktop.org/git/xorg/driver/xf86-video-intel

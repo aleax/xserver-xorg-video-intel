@@ -1,0 +1,10 @@
+xserver-xorg-video-i810-modesetting (1.6.5.git20061014-1) UNRELEASED; urgency=low
+
+  * Initial packaging of modesetting branch of xf86-video-intel (i810).
+    This is a development snapshot only at the moment but should
+    eventually replace the i810 driver in the future.
+  * Patch 10_i830_modes_M_T_defines.patch enables build for this
+    version (workaround reported on xorg mailing list).
+  * configure script and friends generated with "autoreconf --install".
+
+ -- Drew Parsons <dparsons@debian.org>  Sun, 15 Oct 2006 01:26:35 +1000
