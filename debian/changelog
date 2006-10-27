@@ -1,3 +1,10 @@
+xserver-xorg-video-i810-modesetting (1.6.5.git20061014-1) unstable; urgency=low
+
+  * Bring into unstable to facilitate wider testing.
+    Not intended for etch.
+
+ -- Drew Parsons <dparsons@debian.org>  Fri, 27 Oct 2006 13:53:40 +1000
+
 xserver-xorg-video-i810-modesetting (1.6.5.git20061014-1~1) experimental; urgency=low
 
   * Initial packaging of modesetting branch of xf86-video-intel (i810).
