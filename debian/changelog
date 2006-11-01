@@ -1,3 +1,11 @@
+xserver-xorg-video-i810-modesetting (1.6.5.git20061014.ac1-1) unstable; urgency=low
+
+  * Apply autoreconf -i -f before creating orig.tar.gz source tarball
+    from upstream git source. This helps maintain correct permissions
+    for autoconf scripts (including configure).
+
+ -- Drew Parsons <dparsons@debian.org>  Wed,  1 Nov 2006 21:37:25 +1100
+
 xserver-xorg-video-i810-modesetting (1.6.5.git20061014-1) unstable; urgency=low
 
   * Bring into unstable to facilitate wider testing.
