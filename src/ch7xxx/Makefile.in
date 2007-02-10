@@ -108,6 +108,8 @@ DRIVER_NAME = @DRIVER_NAME@
 DRI_CFLAGS = @DRI_CFLAGS@
 DRI_FALSE = @DRI_FALSE@
 DRI_LIBS = @DRI_LIBS@
+DRI_MM_CFLAGS = @DRI_MM_CFLAGS@
+DRI_MM_LIBS = @DRI_MM_LIBS@
 DRI_TRUE = @DRI_TRUE@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -160,6 +162,8 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
+VIDEO_DEBUG_FALSE = @VIDEO_DEBUG_FALSE@
+VIDEO_DEBUG_TRUE = @VIDEO_DEBUG_TRUE@
 WARN_CFLAGS = @WARN_CFLAGS@
 XORG_CFLAGS = @XORG_CFLAGS@
 XORG_LIBS = @XORG_LIBS@
@@ -218,7 +222,7 @@ target_alias = @target_alias@
 # -avoid-version prevents gratuitous .0.0.0 version numbers on the end
 # _ladir passes a dummy rpath to libtool so the thing will actually link
 # TODO: -nostdlib/-Bstatic/-lgcc platform magic, not installing the .a, etc.
-AM_CFLAGS = @XORG_CFLAGS@ @DRI_CFLAGS@
+AM_CFLAGS = @XORG_CFLAGS@ @DRI_CFLAGS@ -I$(srcdir)/../
 ch7xxx_la_LTLIBRARIES = ch7xxx.la
 ch7xxx_la_LDFLAGS = -module -avoid-version
 ch7xxx_ladir = @moduledir@/drivers
