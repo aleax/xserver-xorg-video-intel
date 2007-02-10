@@ -1,4 +1,4 @@
-xserver-xorg-video-i810-modesetting (1.6.5.git20070210-1) UNRELEASED; urgency=low
+xserver-xorg-video-i810-modesetting (1.7.2.git20070210-1) UNRELEASED; urgency=low
 
   [ Julien Cristau ]
   * Add link to xserver-xorg-core bug script, so that bugreports contain
@@ -9,7 +9,7 @@ xserver-xorg-video-i810-modesetting (1.6.5.git20070210-1) UNRELEASED; urgency=lo
   [ David Nusinow ]
   * New upstream version
 
- -- David Nusinow <dnusinow@debian.org>  Sat, 10 Feb 2007 11:16:28 -0500
+ -- David Nusinow <dnusinow@debian.org>  Sat, 10 Feb 2007 11:25:53 -0500
 
 xserver-xorg-video-i810-modesetting (1.6.5.git20061014.ac1-1) unstable; urgency=low
 
