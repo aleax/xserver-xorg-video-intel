@@ -8,8 +8,11 @@ xserver-xorg-video-i810-modesetting (1.7.2.git20070210-1) UNRELEASED; urgency=lo
 
   [ David Nusinow ]
   * New upstream version
+  * Remove obsolete 10_i830_modes_M_T_defines.patch
+  * Add xsfclean target to clean target in debian/rules to make sure we've
+    cleaned up the quilt leavings
 
- -- David Nusinow <dnusinow@debian.org>  Sat, 10 Feb 2007 11:25:53 -0500
+ -- David Nusinow <dnusinow@debian.org>  Sat, 10 Feb 2007 11:33:51 -0500
 
 xserver-xorg-video-i810-modesetting (1.6.5.git20061014.ac1-1) unstable; urgency=low
 
