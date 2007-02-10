@@ -83,8 +83,8 @@ DGAFunctionRec I830DGAFuncs = {
 #endif
 };
 
-Bool
-I830DGAInit(ScreenPtr pScreen)
+static DGAModePtr
+I830DGAModes (ScreenPtr pScreen, int *nump)
 {
    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
    I830Ptr pI830 = I830PTR(pScrn);
@@ -92,8 +92,6 @@ I830DGAInit(ScreenPtr pScreen)
    DisplayModePtr pMode, firstMode;
    int Bpp = pScrn->bitsPerPixel >> 3;
    int num = 0;
-
-   MARKER();
 
    pMode = firstMode = pScrn->modes;
 
@@ -103,7 +101,7 @@ I830DGAInit(ScreenPtr pScreen)
 
       if (!newmodes) {
 	 xfree(modes);
-	 return FALSE;
+	 return NULL;
       }
       modes = newmodes;
 
@@ -159,7 +157,42 @@ I830DGAInit(ScreenPtr pScreen)
       if (pMode == firstMode)
 	 break;
    }
+   *nump = num;
+   return modes;
+}
 
+Bool
+I830DGAReInit(ScreenPtr pScreen)
+{
+   ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+   I830Ptr pI830 = I830PTR(pScrn);
+   int num;
+   DGAModePtr  modes;
+   
+   modes = I830DGAModes (pScreen, &num);
+   if (!modes)
+      return FALSE;
+   
+   if (pI830->DGAModes)
+      xfree (pI830->DGAModes);
+   
+   pI830->numDGAModes = num;
+   pI830->DGAModes = modes;
+   return DGAReInitModes (pScreen, modes, num);
+}
+
+Bool
+I830DGAInit(ScreenPtr pScreen)
+{
+   ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+   I830Ptr pI830 = I830PTR(pScrn);
+   int num;
+   DGAModePtr  modes;
+   
+   modes = I830DGAModes (pScreen, &num);
+   if (!modes)
+      return FALSE;
+   
    pI830->numDGAModes = num;
    pI830->DGAModes = modes;
 
@@ -238,6 +271,7 @@ static void
 I830_FillRect(ScrnInfoPtr pScrn,
 	      int x, int y, int w, int h, unsigned long color)
 {
+#ifdef I830_USE_XAA
    I830Ptr pI830 = I830PTR(pScrn);
 
    MARKER();
@@ -247,6 +281,7 @@ I830_FillRect(ScrnInfoPtr pScrn,
       (*pI830->AccelInfoRec->SubsequentSolidFillRect) (pScrn, x, y, w, h);
       SET_SYNC_FLAG(pI830->AccelInfoRec);
    }
+#endif
 }
 
 static void
@@ -278,6 +313,7 @@ static void
 I830_BlitRect(ScrnInfoPtr pScrn,
 	      int srcx, int srcy, int w, int h, int dstx, int dsty)
 {
+#ifdef I830_USE_XAA
    I830Ptr pI830 = I830PTR(pScrn);
 
    MARKER();
@@ -292,6 +328,7 @@ I830_BlitRect(ScrnInfoPtr pScrn,
 							    dstx, dsty, w, h);
       SET_SYNC_FLAG(pI830->AccelInfoRec);
    }
+#endif
 }
 
 #if 0
@@ -360,17 +397,11 @@ I830_CloseFramebuffer(ScrnInfoPtr pScrn)
    };
 
    if (I830IsPrimary(pScrn)) {
-      if (pI830->rotation != RR_Rotate_0)
-         pScrn->fbOffset = pI830->RotatedMem.Start;
-      else
-         pScrn->fbOffset = pI830->FrontBuffer.Start;
+     pScrn->fbOffset = pI830->FrontBuffer.Start;
    } else {
       I830Ptr pI8301 = I830PTR(pI830->entityPrivate->pScrn_1);
 
-      if (pI830->rotation != RR_Rotate_0)
-         pScrn->fbOffset = pI8301->RotatedMem2.Start;
-      else
-         pScrn->fbOffset = pI8301->FrontBuffer2.Start;
+      pScrn->fbOffset = pI8301->FrontBuffer2.Start;
    }
    I830SelectBuffer(pScrn, I830_SELECT_FRONT);
 

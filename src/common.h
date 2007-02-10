@@ -77,6 +77,7 @@ extern const OptionInfoRec *I830AvailableOptions(int chipid, int busid);
 extern void I830InitpScrn(ScrnInfoPtr pScrn);
 
 /* Symbol lists shared by the i810 and i830 parts. */
+extern int I830EntityIndex;
 extern const char *I810vgahwSymbols[];
 extern const char *I810ramdacSymbols[];
 extern const char *I810int10Symbols[];
@@ -96,7 +97,7 @@ extern void I830DPRINTF_stub(const char *filename, int line,
 			     const char *function, const char *fmt, ...);
 
 #ifdef _I830_H_
-#define PrintErrorState I830PrintErrorState
+#define PrintErrorState i830_dump_error_state
 #define WaitRingFunc I830WaitLpRing
 #define RecPtr pI830
 #else
@@ -128,6 +129,17 @@ extern void I830DPRINTF_stub(const char *filename, int line,
    outring += 4; ringused += 4;							\
    outring &= ringmask;							\
 } while (0)
+
+union intfloat {
+	float f;
+	unsigned int ui;
+};
+
+#define OUT_RING_F(x) do {			\
+	union intfloat tmp;			\
+	tmp.f = (float)(x);			\
+	OUT_RING(tmp.ui);			\
+} while(0)				
 
 #define ADVANCE_LP_RING() do {						\
    if (ringused > needed)          \
@@ -337,10 +349,6 @@ extern int I810_DEBUG;
 /* Use a 64x64 HW cursor */
 #define I810_CURSOR_X			64
 #define I810_CURSOR_Y			I810_CURSOR_X
-
-/* XXX Need to check if these are reasonable. */
-#define MAX_DISPLAY_PITCH		2048
-#define MAX_DISPLAY_HEIGHT		2048
 
 #define PIPE_NAME(n)			('A' + (n))
 

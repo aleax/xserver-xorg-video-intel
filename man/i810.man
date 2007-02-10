@@ -49,7 +49,7 @@ DRI is enabled.  This amount may be changed with the
 entry in the config file
 .B "Device"
 section.  It may be set to any reasonable value up to 64MB for older
-chipsets or 128MB for newer chipets.  It is advisable to check the
+chipsets or 128MB for newer chipsets.  It is advisable to check the
 __xservername__
 log file to check if any features have been disabled because of insufficient
 video memory.  In particular, DRI support or tiling mode may be disabled
@@ -84,9 +84,12 @@ This allows the user to change the amount of graphics memory used for
 2D acceleration and video.  Decreasing this amount leaves more for 3D
 textures.  Increasing it can improve 2D performance at the expense of
 3D performance.
+.TP
+This option only takes effect when XAA acceleration is enabled.
+.TP
 Default: depends on the resolution, depth, and available video memory.  The
-driver attempts to allocate at least enough to hold two DVD-sized YUV buffers
-by default.  The default used for a specific configuration can be found
+driver attempts to allocate space for at 3 screenfuls of pixmaps plus an
+HD-sized XV video.  The default used for a specific configuration can be found
 by examining the __xservername__ log file.
 .TP
 .BI "Option \*qDRI\*q \*q" boolean \*q
@@ -126,51 +129,6 @@ other drivers.
 Disable or enable XVideo support.
 Default: XVideo is enabled for configurations where it is supported.
 .TP
-.BI "Option \*qMonitorLayout\*q \*q" anystr \*q
-Allow different monitor configurations. e.g. \*qCRT,LFP\*q will 
-configure a CRT on Pipe A and an LFP on Pipe B. Regardless of the 
-primary heads' pipe it is always configured as \*q<PIPEA>,<PIPEB>\*q. 
-Additionally you can add different configurations such as 
-\*qCRT+DFP,LFP\*q which would put a digital flat panel and a CRT 
-on pipe A, and a local flat panel on pipe B.
-For single pipe configurations you can just specify the monitors types
-on Pipe A, such as \*qCRT+DFP\*q which will enable the CRT and DFP
-on Pipe A.
-Valid monitors are CRT, LFP, DFP, TV, CRT2, LFP2, DFP2, TV2 and NONE.
-NOTE: Some configurations of monitor types may fail, this depends on
-the Video BIOS and system configuration.
-Default: Not configured, and will use the current head's pipe and monitor.
-.TP
-.BI "Option \*qClone\*q \*q" boolean \*q
-Enable Clone mode on pipe B. This will setup the second head as a complete
-mirror of the monitor attached to pipe A. 
-NOTE: Video overlay functions will not work on the second head in this mode.
-If you require this, then use the MonitorLayout above and do (as an example)
-\*qCRT+DFP,NONE\*q to configure both a CRT and DFP on Pipe A to achieve
-local mirroring and disable the use of this option.
-Default: Clone mode on pipe B is disabled.
-.TP
-.BI "Option \*qCloneRefresh\*q \*q" integer \*q
-When the Clone option is specified we can drive the second monitor at a
-different refresh rate than the primary. 
-Default: 60Hz.
-.TP
-.BI "Option \*qCheckLid\*q \*q" boolean \*q
-On mobile platforms it's desirable to monitor the lid status and switch
-the outputs accordingly when the lid is opened or closed. By default this
-option is on, but may incur a very minor performance penalty as we need
-to poll a register on the card to check for this activity. It can be
-turned off using this option. This only works with the 830M, 852GM and 855GM
-systems.
-Default: enabled.
-.TP
-.BI "Option \*qFlipPrimary\*q \*q" boolean \*q
-When using a dual pipe system, it may be preferable to switch the primary
-screen to the alternate pipe to display on the other monitor connection.
-NOTE: Using this option may cause text mode to be restored incorrectly,
-and thus should be used with caution.
-Default: disabled.
-.TP
 .BI "Option \*qRotate\*q \*q90\*q"
 Rotate the desktop 90 degrees counterclockwise. Other valid options are
 0, 90, 180 and 270 degrees. The RandR extension is used for rotation 
@@ -181,8 +139,37 @@ Default: 0 degrees.
 .BI "Option \*qLinearAlloc\*q \*q" integer \*q
 Allows more memory for the offscreen allocator. This usually helps in
 situations where HDTV movies are required to play but not enough offscreen
-memory is usually available. Set this to 6144 for upto 1920x1080 HDTV support.
+memory is usually available. Set this to 8160 for upto 1920x1080 HDTV support.
 Default 0KB (off).
+.TP
+.BI "Option \*qLegacy3D\*q \*q" boolean \*q
+Enable support for the legacy i915_dri.so 3D driver.
+This will, among other things, make the 2D driver tell libGL to
+load the 3D driver i915_dri.so instead of the newer i915tex_dri.so.
+This option is only used for chipsets in the range i830-i945. 
+Default for i830-i945 series: Enabled for i915 drm versions < 1.7.0. Otherwise
+disabled. 
+Default for i810: The option is not used.
+Default for i965: The option is always true.
+.TP
+.BI "Option \*qAperTexSize\*q \*q" integer \*q
+Give the size in kiB of the AGP aperture area that is reserved for the
+DRM memory manager present in i915 drm from version 1.7.0 and upwards,
+and that is used with the 3D driver in Mesa from version 6.5.2 and
+upwards. If the size is set too high to make room for pre-allocated
+VideoRam, the driver will try to reduce it automatically. If you use only
+older Mesa or DRM versions, you may set this value to zero, and
+atctivate the legacy texture pool (see 
+.B "Option \*qLegacy3D\*q"
+). If you run 3D programs with large texture memory requirements, you might
+gain some performance by increasing this value.
+Default: 32768.
+.TP
+.BI "Option \*qAccelMethod\*q \*q" string \*q
+Choose acceleration architecture, either "XAA" or "EXA".  XAA is the old
+(but stable) XFree86 based acceleration architecture.  EXA is a newer and
+simpler acceleration architecture designed to better accelerate the X Render
+extension.  Default: "XAA".
 
 .SH "SEE ALSO"
 __xservername__(__appmansuffix__), __xconfigfile__(__filemansuffix__), xorgconfig(__appmansuffix__), Xserver(__appmansuffix__), X(__miscmansuffix__)

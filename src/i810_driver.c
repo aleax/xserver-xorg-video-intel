@@ -313,6 +313,12 @@ const char *I810drmSymbols[] = {
    "drmGetLibVersion",
    "drmGetVersion",
    "drmRmMap",
+#ifdef XSERVER_LIBDRM_MM 
+   "drmMMInit",
+   "drmMMTakedown",
+   "drmMMLock",
+   "drmMMUnlock",
+#endif
    NULL
 };
 
@@ -336,11 +342,8 @@ const char *I810driSymbols[] = {
 #endif /* I830_ONLY */
 
 const char *I810shadowSymbols[] = {
-    "shadowInit",
     "shadowSetup",
     "shadowAdd",
-    "shadowRemove",
-    "shadowUpdateRotatePacked",
     NULL
 };
 
@@ -394,7 +397,7 @@ static XF86ModuleVersionInfo i810VersRec = {
    {0, 0, 0, 0}
 };
 
-_X_EXPORT XF86ModuleData i810ModuleData = { &i810VersRec, i810Setup, 0 };
+_X_EXPORT XF86ModuleData i810ModuleData = { &i810VersRec, i810Setup, NULL };
 
 static pointer
 i810Setup(pointer module, pointer opts, int *errmaj, int *errmin)
@@ -462,7 +465,7 @@ I810FreeRec(ScrnInfoPtr pScrn)
    if (!pScrn->driverPrivate)
       return;
    xfree(pScrn->driverPrivate);
-   pScrn->driverPrivate = 0;
+   pScrn->driverPrivate = NULL;
 }
 #endif
 
@@ -571,7 +574,8 @@ I810Probe(DriverPtr drv, int flags)
 
 	 /* Allocate new ScrnInfoRec and claim the slot */
 	 if ((pScrn = xf86ConfigPciEntity(pScrn, 0, usedChips[i],
-					  I810PciChipsets, 0, 0, 0, 0, 0))) {
+					  I810PciChipsets, NULL, NULL, NULL,
+					  NULL, NULL))) {
 	    EntityInfoPtr pEnt;
 
 	    pEnt = xf86GetEntityInfo(usedChips[i]);
@@ -603,23 +607,23 @@ I810Probe(DriverPtr drv, int flags)
     	       if (I830EntityIndex < 0)					
 		  I830EntityIndex = xf86AllocateEntityPrivateIndex();	
 
-    	       pPriv = xf86GetEntityPrivate(pScrn->entityList[0],		
+    	       pPriv = xf86GetEntityPrivate(pScrn->entityList[0],
 						I830EntityIndex);	
-    	       if (!pPriv->ptr) {						
-		  pPriv->ptr = xnfcalloc(sizeof(I830EntRec), 1);		
-		  pI830Ent = pPriv->ptr;					
-		  pI830Ent->lastInstance = -1;				
-    	       } else {							
-		  pI830Ent = pPriv->ptr;					
+    	       if (!pPriv->ptr) {
+		  pPriv->ptr = xnfcalloc(sizeof(I830EntRec), 1);
+		  pI830Ent = pPriv->ptr;
+		  pI830Ent->lastInstance = -1;
+    	       } else {
+		   pI830Ent = pPriv->ptr;
     	       }
-								
-    	       /*								
-     	        * Set the entity instance for this instance of the driver.	
-     	        * For dual head per card, instance 0 is the "master" 	
-     	        * instance, driving the primary head, and instance 1 is 	
-     	        * the "slave".						
-     	        */								
-    	       pI830Ent->lastInstance++;					
+
+    	       /*
+		* Set the entity instance for this instance of the driver.
+     	        * For dual head per card, instance 0 is the "master"
+     	        * instance, driving the primary head, and instance 1 is
+     	        * the "slave".
+     	        */
+    	       pI830Ent->lastInstance++;
                xf86SetEntityInstanceForScreen(pScrn,			
 			pScrn->entityList[0], pI830Ent->lastInstance);	
 	       I830InitpScrn(pScrn);
@@ -740,7 +744,7 @@ I810PreInit(ScrnInfoPtr pScrn, int flags)
    pI810->PciTag = pciTag(pI810->PciInfo->bus, pI810->PciInfo->device,
 			  pI810->PciInfo->func);
 
-   if (xf86RegisterResources(pI810->pEnt->index, 0, ResNone))
+   if (xf86RegisterResources(pI810->pEnt->index, NULL, ResNone))
       return FALSE;
    pScrn->racMemFlags = RAC_FB | RAC_COLORMAP;
 
@@ -1194,14 +1198,13 @@ I810MapMem(ScrnInfoPtr pScrn)
    long i;
 
    for (i = 2; i < pI810->FbMapSize; i <<= 1) ;
-   pI810->FbMapSize = i;
 
    if (!I810MapMMIO(pScrn))
       return FALSE;
 
    pI810->FbBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
 				 pI810->PciTag,
-				 pI810->LinearAddr, pI810->FbMapSize);
+				 pI810->LinearAddr, i);
    if (!pI810->FbBase)
       return FALSE;
 
@@ -1217,7 +1220,7 @@ I810UnmapMMIO(ScrnInfoPtr pScrn)
 
    xf86UnMapVidMem(pScrn->scrnIndex, (pointer) pI810->MMIOBase,
 		   I810_REG_SIZE);
-   pI810->MMIOBase = 0;
+   pI810->MMIOBase = NULL;
 }
 
 static Bool
@@ -1227,7 +1230,7 @@ I810UnmapMem(ScrnInfoPtr pScrn)
 
    xf86UnMapVidMem(pScrn->scrnIndex, (pointer) pI810->FbBase,
 		   pI810->FbMapSize);
-   pI810->FbBase = 0;
+   pI810->FbBase = NULL;
    I810UnmapMMIO(pScrn);
    return TRUE;
 }

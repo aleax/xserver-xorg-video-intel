@@ -18,13 +18,15 @@
 #  IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 #  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-SUBDIRS = xvmc bios_reader ch7xxx sil164
+SUBDIRS = xvmc bios_reader ch7017 ch7xxx ivch sil164
+
 # this is obnoxious:
 # -module lets us name the module exactly how we want
 # -avoid-version prevents gratuitous .0.0.0 version numbers on the end
 # _ladir passes a dummy rpath to libtool so the thing will actually link
 # TODO: -nostdlib/-Bstatic/-lgcc platform magic, not installing the .a, etc.
-AM_CFLAGS = @WARN_CFLAGS@ @XORG_CFLAGS@ @DRI_CFLAGS@ -DI830_XV
+AM_CFLAGS = @WARN_CFLAGS@ @XORG_CFLAGS@ @DRI_CFLAGS@ \
+	-DI830_XV -DI830_USE_XAA -DI830_USE_EXA
 
 i810_drv_la_LTLIBRARIES = i810_drv.la
 i810_drv_la_LDFLAGS = -module -avoid-version
@@ -53,6 +55,7 @@ i810_drv_la_SOURCES = \
          i830_bios.c \
          i830_bios.h \
          i830_common.h \
+	 i830_crt.c \
          i830_cursor.c \
 	 i830_debug.c \
 	 i830_debug.h \
@@ -61,32 +64,51 @@ i810_drv_la_SOURCES = \
 	 i830_display.h \
          i830_driver.c \
 	 i830_dvo.c \
+         i830_edid_modes.c \
          i830.h \
-         i830_gtf.c \
          i830_i2c.c \
          i830_io.c \
+	 i830_lvds.c \
          i830_memory.c \
          i830_modes.c \
          i830_video.c \
          i830_video.h \
 	 i830_reg.h \
-         i830_rotate.c \
 	 i830_randr.c \
 	 i830_sdvo.c \
 	 i830_sdvo.h \
 	 i830_sdvo_regs.h \
+	 i830_tv.c \
 	 i830_xf86Modes.h \
 	 i830_xf86Modes.c \
+	 i830_xf86cvt.c \
+	 i830_xf86Crtc.h \
+	 i830_xf86Crtc.c \
+	 i830_xf86Rotate.c \
 	 i915_3d.c \
 	 i915_3d.h \
 	 i915_reg.h \
-	 i915_video.c
+	 i915_video.c \
+	 i965_video.c \
+	 i830_exa.c \
+	 i830_xaa.c \
+	 i830_render.c \
+	 i915_render.c \
+	 i965_render.c
 
 if HAVE_GEN4ASM
 sf_prog.h: packed_yuv_sf.g4a
 	intel-gen4asm -o sf_prog.h packed_yuv_sf.g4a
 wm_prog.h: packed_yuv_wm.g4a
 	intel-gen4asm -o wm_prog.h packed_yuv_wm.g4a
+exa_sf_prog.h: exa_sf.g4a
+	intel-gen4asm -o exa_sf_prog.h exa_sf.g4a
+exa_sf_mask_prog.h: exa_sf_mask.g4a
+	intel-gen4asm -o exa_sf_mask_prog.h exa_sf_mask.g4a
+exa_wm_nomask_prog.h: exa_wm_nomask.g4a
+	intel-gen4asm -o exa_wm_nomask_prog.h exa_wm_nomask.g4a
+exa_wm_masknoca_prog.h: exa_wm_masknoca.g4a
+	intel-gen4asm -o exa_wm_masknoca_prog.h exa_wm_masknoca.g4a
 endif
 
 if DRI

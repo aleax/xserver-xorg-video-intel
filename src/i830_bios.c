@@ -84,15 +84,18 @@ i830GetBIOS(ScrnInfoPtr pScrn)
     struct vbt_header *vbt;
     int vbt_off;
     unsigned char *bios;
+    vbeInfoPtr	pVbe;
 
     bios = xalloc(INTEL_VBIOS_SIZE);
     if (bios == NULL)
 	return NULL;
 
-    if (pI830->pVbe != NULL) {
-	memcpy(bios, xf86int10Addr(pI830->pVbe->pInt10,
-					   pI830->pVbe->pInt10->BIOSseg << 4),
+    pVbe = VBEInit (NULL, pI830->pEnt->index);
+    if (pVbe != NULL) {
+	memcpy(bios, xf86int10Addr(pVbe->pInt10,
+				   pVbe->pInt10->BIOSseg << 4),
 	       INTEL_VBIOS_SIZE);
+	vbeFree (pVbe);
     } else {
 	xf86ReadPciBIOS(0, pI830->PciTag, 0, bios, INTEL_VBIOS_SIZE);
     }
@@ -155,6 +158,7 @@ i830GetLVDSInfoFromBIOS(ScrnInfoPtr pScrn)
 	struct lvds_bdb_2 *lvds2;
 	struct lvds_bdb_2_fp_params *fpparam;
 	struct lvds_bdb_2_fp_edid_dtd *fptiming;
+	DisplayModePtr fixed_mode;
 	CARD8 *timing_ptr;
 
 	id = INTEL_BIOS_8(start);
@@ -194,32 +198,37 @@ i830GetLVDSInfoFromBIOS(ScrnInfoPtr pScrn)
 		    continue;
 	    }
 
-	    pI830->PanelXRes = fpparam->x_res;
-	    pI830->PanelYRes = fpparam->y_res;
-	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		       "Found panel of size %dx%d in BIOS VBT tables\n",
-		       pI830->PanelXRes, pI830->PanelYRes);
+	    fixed_mode = xnfalloc(sizeof(DisplayModeRec));
+	    memset(fixed_mode, 0, sizeof(*fixed_mode));
 
 	    /* Since lvds_bdb_2_fp_edid_dtd is just an EDID detailed timing
 	     * block, pull the contents out using EDID macros.
 	     */
-	    pI830->panel_fixed_clock = _PIXEL_CLOCK(timing_ptr) / 1000;
-	    pI830->panel_fixed_hactive = _H_ACTIVE(timing_ptr);
-	    pI830->panel_fixed_hblank = _H_BLANK(timing_ptr);
-	    pI830->panel_fixed_hsyncoff = _H_SYNC_OFF(timing_ptr);
-	    pI830->panel_fixed_hsyncwidth = _H_SYNC_WIDTH(timing_ptr);
+	    fixed_mode->HDisplay   = _H_ACTIVE(timing_ptr);
+	    fixed_mode->VDisplay   = _V_ACTIVE(timing_ptr);
+	    fixed_mode->HSyncStart = fixed_mode->HDisplay +
+		_H_SYNC_OFF(timing_ptr);
+	    fixed_mode->HSyncEnd   = fixed_mode->HSyncStart +
+		_H_SYNC_WIDTH(timing_ptr);
+	    fixed_mode->HTotal     = fixed_mode->HDisplay +
+	        _H_BLANK(timing_ptr);
+	    fixed_mode->VSyncStart = fixed_mode->VDisplay +
+		_V_SYNC_OFF(timing_ptr);
+	    fixed_mode->VSyncEnd   = fixed_mode->VSyncStart +
+		_V_SYNC_WIDTH(timing_ptr);
+	    fixed_mode->VTotal     = fixed_mode->VDisplay +
+	        _V_BLANK(timing_ptr);
+	    fixed_mode->Clock      = _PIXEL_CLOCK(timing_ptr) / 1000;
+	    fixed_mode->type       = M_T_PREFERRED;
 
-	    pI830->panel_fixed_vactive = _V_ACTIVE(timing_ptr);
-	    pI830->panel_fixed_vblank = _V_BLANK(timing_ptr);
-	    pI830->panel_fixed_vsyncoff = _V_SYNC_OFF(timing_ptr);
-	    pI830->panel_fixed_vsyncwidth = _V_SYNC_WIDTH(timing_ptr);
+	    xf86SetModeDefaultName(fixed_mode);
+
 	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		       "Panel mode h active %d blank %d rate %f v active %d blank %d rate %f\n",
-		       pI830->panel_fixed_hactive, pI830->panel_fixed_hblank,
-		       (double) pI830->panel_fixed_clock / (pI830->panel_fixed_hactive + pI830->panel_fixed_hblank),
-		       pI830->panel_fixed_vactive, pI830->panel_fixed_vblank,
-		       (double) pI830->panel_fixed_clock / 
-		       ((pI830->panel_fixed_hactive + pI830->panel_fixed_hblank) * (pI830->panel_fixed_vactive + pI830->panel_fixed_vblank)));
+		       "Found panel mode in BIOS VBT tables:\n");
+	    xf86PrintModeline(pScrn->scrnIndex, fixed_mode);
+
+	    pI830->panel_fixed_mode = fixed_mode;
+
 	    found_panel_info = TRUE;
 	    break;
 	}
