@@ -22020,13 +22020,13 @@ if test -d "$XSERVER_SOURCE"; then
 		XSERVER_SOURCE="`cd $XSERVER_SOURCE && pwd`"
 		;;
 	esac
-	if test -f src/modes/xf86Modes.h; then
+	if test -f $srcdir/src/modes/xf86Modes.h; then
 		:
 	else
 		ln -sf $XSERVER_SOURCE/hw/xfree86/modes src/modes
 	fi
 
-	if test -f src/parser/xf86Parser.h; then
+	if test -f $srcdir/src/parser/xf86Parser.h; then
 		:
 	else
 		ln -sf $XSERVER_SOURCE/hw/xfree86/parser src/parser
@@ -22043,7 +22043,7 @@ _ACEOF
 
 	XMODES_CFLAGS=
 else
-	if test -f src/modes/xf86Modes.h -a -f src/parser/xf86Parser.h; then
+	if test -f $srcdir/src/modes/xf86Modes.h -a -f $srcdir/src/parser/xf86Parser.h; then
 		{ echo "$as_me:$LINENO: X server is missing new mode code, using local copy" >&5
 echo "$as_me: X server is missing new mode code, using local copy" >&6;}
 	else
