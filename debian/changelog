@@ -16,6 +16,7 @@ xserver-xorg-video-intel (2:2.2.1-1~etchnhalf1) UNRELEASED; urgency=low
       if srcdir and objdir are different
     + don't install the XvMC driver which is already in
       xserver-xorg-video-i810, and don't mention XvMC in the descriptions
+  * Don't build the xserver-xorg-video-intel-dbg package.
 
  -- Julien Cristau <jcristau@debian.org>  Sun, 24 Feb 2008 10:29:49 +0100
 

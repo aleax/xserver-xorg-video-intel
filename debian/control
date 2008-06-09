@@ -24,13 +24,3 @@ Description: X.Org X server -- Intel i8xx, i9xx display driver
  <URL:http://lists.freedesktop.org/mailman/listinfo/xorg>
  .
  This package is built from the X.org xf86-video-intel driver module.
-
-Package: xserver-xorg-video-intel-dbg
-Architecture: amd64 hurd-i386 i386 kfreebsd-i386 netbsd-i386
-Depends: xserver-xorg-video-intel (= ${binary:Version}), ${shlibs:Depends}
-Priority: extra
-Description: X.Org X server -- Intel i8xx, i9xx display driver (debug symbols)
- This driver provides support for the Intel i8xx and i9xx family of chipsets,
- including i810, i815, i830, i845, i855, i865, i915, i945 and i965 series chips.
- .
- This package provides debugging symbols for this Xorg X driver.
