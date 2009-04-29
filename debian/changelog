@@ -1,10 +1,12 @@
 xserver-xorg-video-intel (2:2.7.99.1-1) UNRELEASED; urgency=low
 
   * New upstream release candidate.
+  * Stop installing libI810XvMC.so and libIntelXvMC.so for now. They are
+    disabled in configure for now because DRI1 is not supported anymore.
   * Install the upstream NEWS file, closes: #524334, #524336.
   * Move the -dbg package to section debug.
 
- -- Brice Goglin <bgoglin@debian.org>  Wed, 29 Apr 2009 19:37:07 +0200
+ -- Brice Goglin <bgoglin@debian.org>  Wed, 29 Apr 2009 19:48:40 +0200
 
 xserver-xorg-video-intel (2:2.7.0-1) unstable; urgency=low
 
