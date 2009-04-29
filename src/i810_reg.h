@@ -1,4 +1,3 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/i810/i810_reg.h,v 1.13 2003/02/06 04:18:04 dawes Exp $ */
 /**************************************************************************
 
 Copyright 1998-1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -114,6 +113,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define BITBLT_STATUS          0x01
 
 #define CHDECMISC	0x10111
+#define DCC			0x10200
 #define C0DRB0			0x10200
 #define C0DRB1			0x10202
 #define C0DRB2			0x10204

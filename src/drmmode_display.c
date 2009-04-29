@@ -31,10 +31,10 @@
 
 #include "xorgVersion.h"
 
-#ifdef XF86DRM_MODE
 #include "i830.h"
 #include "intel_bufmgr.h"
 #include "xf86drmMode.h"
+#include "X11/Xatom.h"
 
 typedef struct {
     int fd;
@@ -52,11 +52,20 @@ typedef struct {
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
 typedef struct {
+    drmModePropertyPtr mode_prop;
+    uint64_t value;
+    int num_atoms; /* if range prop, num_atoms == 1; if enum prop, num_atoms == num_enums + 1 */
+    Atom *atoms;
+} drmmode_prop_rec, *drmmode_prop_ptr;
+
+typedef struct {
     drmmode_ptr drmmode;
     int output_id;
     drmModeConnectorPtr mode_output;
     drmModeEncoderPtr mode_encoder;
     drmModePropertyBlobPtr edid_blob;
+    int num_props;
+    drmmode_prop_ptr props;
 } drmmode_output_private_rec, *drmmode_output_private_ptr;
 
 static void
@@ -508,9 +517,15 @@ static void
 drmmode_output_destroy(xf86OutputPtr output)
 {
 	drmmode_output_private_ptr drmmode_output = output->driver_private;
+	int i;
 
 	if (drmmode_output->edid_blob)
 		drmModeFreePropertyBlob(drmmode_output->edid_blob);
+	for (i = 0; i < drmmode_output->num_props; i++) {
+	    drmModeFreeProperty(drmmode_output->props[i].mode_prop);
+	    xfree(drmmode_output->props[i].atoms);
+	}
+	xfree(drmmode_output->props);
 	drmModeFreeConnector(drmmode_output->mode_output);
 	xfree(drmmode_output);
 	output->driver_private = NULL;
@@ -542,7 +557,162 @@ drmmode_output_dpms(xf86OutputPtr output, int mode)
 	}
 }
 
+static Bool
+drmmode_property_ignore(drmModePropertyPtr prop)
+{
+    if (!prop)
+	return TRUE;
+    /* ignore blob prop */
+    if (prop->flags & DRM_MODE_PROP_BLOB)
+	return TRUE;
+    /* ignore standard property */
+    if (!strcmp(prop->name, "EDID") ||
+	    !strcmp(prop->name, "DPMS"))
+	return TRUE;
+
+    return FALSE;
+}
+
+static void
+drmmode_output_create_resources(xf86OutputPtr output)
+{
+    drmmode_output_private_ptr drmmode_output = output->driver_private;
+    drmModeConnectorPtr mode_output = drmmode_output->mode_output;
+    drmmode_ptr drmmode = drmmode_output->drmmode;
+    drmModePropertyPtr drmmode_prop;
+    int i, j, err;
+
+    drmmode_output->props = xcalloc(mode_output->count_props, sizeof(drmmode_prop_rec));
+    if (!drmmode_output->props)
+	return;
+
+    drmmode_output->num_props = 0;
+    for (i = 0, j = 0; i < mode_output->count_props; i++) {
+	drmmode_prop = drmModeGetProperty(drmmode->fd, mode_output->props[i]);
+	if (drmmode_property_ignore(drmmode_prop)) {
+	    drmModeFreeProperty(drmmode_prop);
+	    continue;
+	}
+	drmmode_output->props[j].mode_prop = drmmode_prop;
+	drmmode_output->props[j].value = mode_output->prop_values[i];
+	drmmode_output->num_props++;
+	j++;
+    }
+
+    for (i = 0; i < drmmode_output->num_props; i++) {
+	drmmode_prop_ptr p = &drmmode_output->props[i];
+	drmmode_prop = p->mode_prop;
+
+	if (drmmode_prop->flags & DRM_MODE_PROP_RANGE) {
+	    INT32 range[2];
+
+	    p->num_atoms = 1;
+	    p->atoms = xcalloc(p->num_atoms, sizeof(Atom));
+	    if (!p->atoms)
+		continue;
+	    p->atoms[0] = MakeAtom(drmmode_prop->name, strlen(drmmode_prop->name), TRUE);
+	    range[0] = drmmode_prop->values[0];
+	    range[1] = drmmode_prop->values[1];
+	    err = RRConfigureOutputProperty(output->randr_output, p->atoms[0],
+		    FALSE, TRUE,
+		    drmmode_prop->flags & DRM_MODE_PROP_IMMUTABLE ? TRUE : FALSE,
+		    2, range);
+	    if (err != 0) {
+		xf86DrvMsg(output->scrn->scrnIndex, X_ERROR,
+			"RRConfigureOutputProperty error, %d\n", err);
+	    }
+	    err = RRChangeOutputProperty(output->randr_output, p->atoms[0],
+		    XA_INTEGER, 32, PropModeReplace, 1, &p->value, FALSE, TRUE);
+	    if (err != 0) {
+		xf86DrvMsg(output->scrn->scrnIndex, X_ERROR,
+			"RRChangeOutputProperty error, %d\n", err);
+	    }
+	} else if (drmmode_prop->flags & DRM_MODE_PROP_ENUM) {
+	    p->num_atoms = drmmode_prop->count_enums + 1;
+	    p->atoms = xcalloc(p->num_atoms, sizeof(Atom));
+	    if (!p->atoms)
+		continue;
+	    p->atoms[0] = MakeAtom(drmmode_prop->name, strlen(drmmode_prop->name), TRUE);
+	    for (j = 1; j <= drmmode_prop->count_enums; j++) {
+		struct drm_mode_property_enum *e = &drmmode_prop->enums[j-1];
+		p->atoms[j] = MakeAtom(e->name, strlen(e->name), TRUE);
+	    }
+	    err = RRConfigureOutputProperty(output->randr_output, p->atoms[0],
+		    FALSE, FALSE,
+		    drmmode_prop->flags & DRM_MODE_PROP_IMMUTABLE ? TRUE : FALSE,
+		    p->num_atoms - 1, (INT32 *)&p->atoms[1]);
+	    if (err != 0) {
+		xf86DrvMsg(output->scrn->scrnIndex, X_ERROR,
+			"RRConfigureOutputProperty error, %d\n", err);
+	    }
+	    for (j = 0; j < drmmode_prop->count_enums; j++)
+		if (drmmode_prop->enums[j].value == p->value)
+		    break;
+	    /* there's always a matching value */
+	    err = RRChangeOutputProperty(output->randr_output, p->atoms[0],
+		    XA_ATOM, 32, PropModeReplace, 1, &p->atoms[j+1], FALSE, TRUE);
+	    if (err != 0) {
+		xf86DrvMsg(output->scrn->scrnIndex, X_ERROR,
+			"RRChangeOutputProperty error, %d\n", err);
+	    }
+	}
+    }
+}
+
+static Bool
+drmmode_output_set_property(xf86OutputPtr output, Atom property,
+		RRPropertyValuePtr value)
+{
+    drmmode_output_private_ptr drmmode_output = output->driver_private;
+    drmmode_ptr drmmode = drmmode_output->drmmode;
+    int i;
+
+    for (i = 0; i < drmmode_output->num_props; i++) {
+	drmmode_prop_ptr p = &drmmode_output->props[i];
+
+	if (p->atoms[0] != property)
+	    continue;
+
+	if (p->mode_prop->flags & DRM_MODE_PROP_RANGE) {
+	    uint32_t val;
+
+	    if (value->type != XA_INTEGER || value->format != 32 ||
+		    value->size != 1)
+		return FALSE;
+	    val = *(uint32_t *)value->data;
+
+	    drmModeConnectorSetProperty(drmmode->fd, drmmode_output->output_id,
+		    p->mode_prop->prop_id, (uint64_t)val);
+	    return TRUE;
+	} else if (p->mode_prop->flags & DRM_MODE_PROP_ENUM) {
+	    Atom	atom;
+	    const char	*name;
+	    int		j;
+
+	    if (value->type != XA_ATOM || value->format != 32 || value->size != 1)
+		return FALSE;
+	    memcpy(&atom, value->data, 4);
+	    name = NameForAtom(atom);
+
+	    /* search for matching name string, then set its value down */
+	    for (j = 0; j < p->mode_prop->count_enums; j++) {
+		if (!strcmp(p->mode_prop->enums[j].name, name)) {
+		    drmModeConnectorSetProperty(drmmode->fd, drmmode_output->output_id,
+			    p->mode_prop->prop_id, p->mode_prop->enums[j].value);
+		    return TRUE;
+		}
+	    }
+	}
+    }
+    /* no property found? */
+    return FALSE;
+}
+
 static const xf86OutputFuncsRec drmmode_output_funcs = {
+	.create_resources = drmmode_output_create_resources,
+#ifdef RANDR_12_INTERFACE
+	.set_property = drmmode_output_set_property,
+#endif
 	.dpms = drmmode_output_dpms,
 #if 0
 
@@ -567,19 +737,19 @@ static int subpixel_conv_table[7] = { 0, SubPixelUnknown,
 				      SubPixelVerticalBGR,
 				      SubPixelNone };
 
-const char *output_names[] = { "None",
-			       "VGA",
-			       "DVI",
-			       "DVI",
-			       "DVI",
-			       "Composite",
-			       "TV",
-			       "LVDS",
-			       "CTV",
-			       "DIN",
-			       "DP",
-			       "HDMI",
-			       "HDMI",
+static const char *output_names[] = { "None",
+				      "VGA",
+				      "DVI",
+				      "DVI",
+				      "DVI",
+				      "Composite",
+				      "TV",
+				      "LVDS",
+				      "CTV",
+				      "DIN",
+				      "DP",
+				      "HDMI",
+				      "HDMI",
 };
 
 
@@ -653,9 +823,6 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 	if (scrn->virtualX == width && scrn->virtualY == height)
 		return TRUE;
 
-	if (!pI830->can_resize)
-		return FALSE;
-
 	pitch = i830_pad_drawable_width(width, pI830->cpp);
 	tiled = i830_tiled_width(pI830, &pitch, pI830->cpp);
 	xf86DrvMsg(scrn->scrnIndex, X_INFO,
@@ -725,7 +892,6 @@ static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
 
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 {
-	I830Ptr pI830 = I830PTR(pScrn);
 	xf86CrtcConfigPtr   xf86_config;
 	drmmode_ptr drmmode;
 	int i;
@@ -750,33 +916,7 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	for (i = 0; i < drmmode->mode_res->count_connectors; i++)
 		drmmode_output_init(pScrn, drmmode, i);
 
-	xf86InitialConfiguration(pScrn, pI830->can_resize);
+	xf86InitialConfiguration(pScrn, TRUE);
 
 	return TRUE;
 }
-
-Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
-{
-	return FALSE;
-
-#if 0
-	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR (pScrn);
-	int i;
-
-	for (i = 0; i < config->num_crtc; i++) {
-		xf86CrtcPtr crtc = config->crtc[i];
-		drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-		if (!drmmode_crtc->rotate_bo)
-			continue;
-
-		if (drmmode_crtc->rotate_bo->virtual == pPixData) {
-			*bo = drmmode_crtc->rotate_bo;
-			return TRUE;
-		}
-	}
-	return FALSE;
-#endif
-}
-
-#endif
