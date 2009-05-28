@@ -364,13 +364,11 @@ i830_reset_allocations(ScrnInfoPtr pScrn)
  * addresses to reference.
  */
 Bool
-i830_allocator_init(ScrnInfoPtr pScrn, unsigned long offset, unsigned long size)
+i830_allocator_init(ScrnInfoPtr pScrn, unsigned long size)
 {
     I830Ptr pI830 = I830PTR(pScrn);
     i830_memory *start, *end;
-    struct drm_i915_getparam gp;
     struct drm_i915_setparam sp;
-    int has_gem;
 
     start = xcalloc(1, sizeof(*start));
     if (start == NULL)
@@ -395,36 +393,24 @@ i830_allocator_init(ScrnInfoPtr pScrn, unsigned long offset, unsigned long size)
     }
 
     start->key = -1;
-    start->offset = offset;
+    start->offset = 0;
     start->end = start->offset;
     start->size = 0;
     start->next = end;
     end->key = -1;
-    end->offset = offset + size;
+    end->offset = size;
     end->end = end->offset;
     end->size = 0;
     end->prev = start;
 
     pI830->memory_list = start;
 
-    has_gem = FALSE;
-
-    if (pI830->directRenderingType >= DRI_DRI2)
-    {
-	has_gem = FALSE;
-	gp.param = I915_PARAM_HAS_GEM;
-	gp.value = &has_gem;
-    
-	(void)drmCommandWriteRead(pI830->drmSubFD, DRM_I915_GETPARAM,
-				  &gp, sizeof(gp));
-    }
-
     /* Now that we have our manager set up, initialize the kernel MM if
      * possible, covering almost all of the aperture.  We need libdri interface
      * 5.4 or newer so we can rely on the lock being held after DRIScreenInit,
      * rather than after DRIFinishScreenInit.
      */
-    if (pI830->directRenderingType == DRI_DRI2 && has_gem) {
+    if (pI830->directRenderingType == DRI_DRI2) {
 	int mmsize;
 
 	/* Take over all of the graphics aperture minus enough to for
@@ -480,6 +466,7 @@ i830_allocator_init(ScrnInfoPtr pScrn, unsigned long offset, unsigned long size)
 		    i830_free_memory(pScrn, pI830->memory_manager);
 		    pI830->memory_manager = NULL;
 		}
+		pI830->have_gem = TRUE;
 		i830_init_bufmgr(pScrn);
 	    }
 	} else {
@@ -798,6 +785,9 @@ i830_allocate_memory_bo(ScrnInfoPtr pScrn, const char *name,
 	}
     }
 
+    if (flags & DISABLE_REUSE)
+	drm_intel_bo_disable_reuse(mem->bo);
+
     /* Insert new allocation into the list */
     mem->prev = NULL;
     mem->next = pI830->bo_list;
@@ -1068,14 +1058,14 @@ i830_allocate_framebuffer(ScrnInfoPtr pScrn)
 {
     I830Ptr pI830 = I830PTR(pScrn);
     unsigned int pitch = pScrn->displayWidth * pI830->cpp;
-    unsigned long minspace, avail;
+    unsigned long minspace;
     int align;
     long size, fb_height;
     int flags;
     i830_memory *front_buffer = NULL;
     enum tile_format tile_format = TILE_NONE;
 
-    flags = ALLOW_SHARING;
+    flags = ALLOW_SHARING|DISABLE_REUSE;
 
     /* We'll allocate the fb such that the root window will fit regardless of
      * rotation.
@@ -1087,7 +1077,6 @@ i830_allocate_framebuffer(ScrnInfoPtr pScrn)
      * enough for the virtual screen size.
      */
     minspace = pitch * pScrn->virtualY;
-    avail = pScrn->videoRam * 1024;
 
     size = ROUND_TO_PAGE(pitch * fb_height);
 
@@ -1125,6 +1114,8 @@ i830_allocate_framebuffer(ScrnInfoPtr pScrn)
     if (!pI830->use_drm_mode && pI830->FbBase && front_buffer->bound)
 	memset (pI830->FbBase + front_buffer->offset, 0, size);
 
+    i830_set_max_gtt_map_size(pScrn);
+
     return front_buffer;
 }
 
@@ -1141,6 +1132,8 @@ i830_allocate_cursor_buffers(ScrnInfoPtr pScrn)
 	pI830->CursorNeedsPhysical = FALSE;
 
     flags = pI830->CursorNeedsPhysical ? NEED_PHYSICAL_ADDR : 0;
+
+    flags |= DISABLE_REUSE;
 
     /* Try to allocate one big blob for our cursor memory.  This works
      * around a limitation in the FreeBSD AGP driver that allows only one
@@ -1583,6 +1576,7 @@ i830_bind_all_memory(ScrnInfoPtr pScrn)
     }
     if (!pI830->use_drm_mode)
 	i830_update_cursor_offsets(pScrn);
+    i830_set_max_gtt_map_size(pScrn);
 
     return TRUE;
 }
@@ -1667,3 +1661,26 @@ Bool i830_allocate_xvmc_buffer(ScrnInfoPtr pScrn, const char *name,
     return TRUE;
 }
 #endif
+
+void
+i830_set_max_gtt_map_size(ScrnInfoPtr pScrn)
+{
+    I830Ptr pI830 = I830PTR(pScrn);
+    struct drm_i915_gem_get_aperture aperture;
+    int ret;
+
+    /* Default low value in case it gets used during server init. */
+    pI830->max_gtt_map_size = 16 * 1024 * 1024;
+
+    if (!pI830->have_gem)
+	return;
+
+    ret = ioctl(pI830->drmSubFD, DRM_IOCTL_I915_GEM_GET_APERTURE, &aperture);
+    if (ret == 0) {
+	/* Let objects up get bound up to the size where only 2 would fit in
+	 * the aperture, but then leave slop to account for alignment like
+	 * libdrm does.
+	 */
+	pI830->max_gtt_map_size = aperture.aper_available_size * 3 / 4 / 2;
+    }
+}

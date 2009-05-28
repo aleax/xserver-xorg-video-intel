@@ -70,6 +70,14 @@ AC_ARG_ENABLE(video-debug, AC_HELP_STRING([--enable-video-debug],
               [VIDEO_DEBUG="$enableval"],
               [VIDEO_DEBUG=no])
 
+AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug],
+				    [Compile with debug support [[default=yes]]]))
+if test "x$enableval" == "xyes" ; then
+	DEBUGFLAGS="-g"
+else
+	DEBUGFLAGS=""
+fi
+
 dnl AC_ARG_ENABLE(xvmc, AC_HELP_STRING([--disable-xvmc],
 dnl                                   [Disable XvMC support [[default=auto]]]),
 dnl               [XVMC="$enableval"],
@@ -116,6 +124,7 @@ if test x$DRI = xauto; then
         fi
 fi
 AC_MSG_RESULT([$DRI])
+CFLAGS="$save_CFLAGS $DEBUGFLAGS"
 
 PKG_CHECK_MODULES([PCIACCESS], [pciaccess >= 0.10])
 
@@ -129,7 +138,7 @@ if test "x$GCC" = "xyes"; then
 	-Wnested-externs -fno-strict-aliasing"
 fi
 
-PKG_CHECK_MODULES(DRM, [libdrm >= 2.4.6])
+PKG_CHECK_MODULES(DRM, [libdrm >= 2.4.11])
 AM_CONDITIONAL(DRI, test x$DRI = xyes)
 if test "$DRI" = yes; then
         PKG_CHECK_MODULES(DRI, [xf86driproto glproto])

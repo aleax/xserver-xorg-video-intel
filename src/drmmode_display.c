@@ -232,6 +232,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		drmmode_output_dpms(output, DPMSModeOn);
 	}
 
+	i830_set_max_gtt_map_size(pScrn);
+
 done:
 	if (!ret) {
 		crtc->x = saved_x;
@@ -919,4 +921,12 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	xf86InitialConfiguration(pScrn, TRUE);
 
 	return TRUE;
+}
+
+int
+drmmode_get_pipe_from_crtc_id(drm_intel_bufmgr *bufmgr, xf86CrtcPtr crtc)
+{
+	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+	return drm_intel_get_pipe_from_crtc_id (bufmgr, drmmode_crtc->mode_crtc->crtc_id);
 }

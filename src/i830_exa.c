@@ -126,6 +126,9 @@ i830_get_aperture_space(ScrnInfoPtr pScrn, drm_intel_bo **bo_table, int num_bos)
 {
     I830Ptr pI830 = I830PTR(pScrn);
 
+    if (pI830->batch_bo == NULL)
+	I830FALLBACK("VT inactive\n");
+
     bo_table[0] = pI830->batch_bo;
     if (drm_intel_bufmgr_check_aperture_space(bo_table, num_bos) != 0) {
 	intel_batch_flush(pScrn, FALSE);
@@ -494,7 +497,7 @@ i830_uxa_prepare_access (PixmapPtr pixmap, uxa_access_t access)
 	intel_batch_flush(scrn, FALSE);
 
 	/* No VT sema or GEM?  No GTT mapping. */
-	if (!scrn->vtSema || !i830->memory_manager) {
+	if (!scrn->vtSema || !i830->have_gem) {
 	    if (dri_bo_map(bo, access == UXA_ACCESS_RW) != 0)
 		return FALSE;
 	    pixmap->devPrivate.ptr = bo->virtual;
@@ -503,10 +506,20 @@ i830_uxa_prepare_access (PixmapPtr pixmap, uxa_access_t access)
 
 	/* Kernel manages fences at GTT map/fault time */
 	if (i830->kernel_exec_fencing) {
-	    if (drm_intel_gem_bo_map_gtt(bo)) {
-		xf86DrvMsg(scrn->scrnIndex, X_WARNING, "%s: bo map failed\n",
-			   __FUNCTION__);
-		return FALSE;
+	    if (bo->size < i830->max_gtt_map_size) {
+		if (drm_intel_gem_bo_map_gtt(bo)) {
+		    xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+			       "%s: bo map failed\n",
+			       __FUNCTION__);
+		    return FALSE;
+		}
+	    } else {
+		if (dri_bo_map(bo, access == UXA_ACCESS_RW) != 0) {
+		    xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+			       "%s: bo map failed\n",
+			       __FUNCTION__);
+		    return FALSE;
+		}
 	    }
 	    pixmap->devPrivate.ptr = bo->virtual;
 	} else { /* or not... */
@@ -532,14 +545,17 @@ i830_uxa_finish_access (PixmapPtr pixmap)
 	if (bo == i830->front_buffer->bo)
 	    i830->need_flush = TRUE;
 
-	if (!scrn->vtSema || !i830->memory_manager) {
+	if (!scrn->vtSema || !i830->have_gem) {
 	    dri_bo_unmap(bo);
 	    pixmap->devPrivate.ptr = NULL;
 	    return;
 	}
 
 	if (i830->kernel_exec_fencing)
-	    drm_intel_gem_bo_unmap_gtt(bo);
+	    if (bo->size < i830->max_gtt_map_size)
+		drm_intel_gem_bo_unmap_gtt(bo);
+	    else
+		dri_bo_unmap(bo);
 	else
 	    drm_intel_bo_unpin(bo);
 	pixmap->devPrivate.ptr = NULL;

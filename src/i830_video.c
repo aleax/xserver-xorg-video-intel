@@ -2495,30 +2495,40 @@ I830PutImage(ScrnInfoPtr pScrn,
         if (sync) {
 	    BoxPtr box;
 	    int y1, y2;
-            int event, pipe;
-	    I830CrtcPrivatePtr intel_crtc = crtc->driver_private;
+	    int pipe = -1, event, load_scan_lines_pipe;
 
-	    if (intel_crtc->pipe == 0) {
-		event = MI_WAIT_FOR_PIPEA_SCAN_LINE_WINDOW;
-		pipe = MI_LOAD_SCAN_LINES_DISPLAY_PIPEA;
-	    } else {
-		event = MI_WAIT_FOR_PIPEB_SCAN_LINE_WINDOW;
-		pipe = MI_LOAD_SCAN_LINES_DISPLAY_PIPEB;
+	    if (pPixmap == pScreen->GetScreenPixmap(pScreen)) {
+		if (pI830->use_drm_mode)
+		    pipe = drmmode_get_pipe_from_crtc_id(pI830->bufmgr, crtc);
+		else {
+		    I830CrtcPrivatePtr intel_crtc = crtc->driver_private;
+		    pipe = intel_crtc->pipe;
+		}
 	    }
 
-	    box = REGION_EXTENTS(unused, clipBoxes);
-	    y1 = box->y1 - crtc->y;
-	    y2 = box->y2 - crtc->y;
+	    if (pipe >= 0) {
+		if (pipe == 0) {
+		    event = MI_WAIT_FOR_PIPEA_SCAN_LINE_WINDOW;
+		    load_scan_lines_pipe = MI_LOAD_SCAN_LINES_DISPLAY_PIPEA;
+		} else {
+		    event = MI_WAIT_FOR_PIPEB_SCAN_LINE_WINDOW;
+		    load_scan_lines_pipe = MI_LOAD_SCAN_LINES_DISPLAY_PIPEB;
+		}
 
-            BEGIN_BATCH(5);
-	    /* The documentation says that the LOAD_SCAN_LINES command
-	     * always comes in pairs. Don't ask me why. */
-	    OUT_BATCH(MI_LOAD_SCAN_LINES_INCL | pipe);
-	    OUT_BATCH((y1 << 16) | y2);
-	    OUT_BATCH(MI_LOAD_SCAN_LINES_INCL | pipe);
-	    OUT_BATCH((y1 << 16) | y2);
-            OUT_BATCH(MI_WAIT_FOR_EVENT | event);
-            ADVANCE_BATCH();
+		box = REGION_EXTENTS(unused, clipBoxes);
+		y1 = box->y1 - crtc->y;
+		y2 = box->y2 - crtc->y;
+
+		BEGIN_BATCH(5);
+		/* The documentation says that the LOAD_SCAN_LINES command
+		 * always comes in pairs. Don't ask me why. */
+		OUT_BATCH(MI_LOAD_SCAN_LINES_INCL | load_scan_lines_pipe);
+		OUT_BATCH((y1 << 16) | y2);
+		OUT_BATCH(MI_LOAD_SCAN_LINES_INCL | load_scan_lines_pipe);
+		OUT_BATCH((y1 << 16) | y2);
+		OUT_BATCH(MI_WAIT_FOR_EVENT | event);
+		ADVANCE_BATCH();
+	    }
         }
 
         if (IS_I965G(pI830)) {

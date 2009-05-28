@@ -611,7 +611,7 @@ i830_update_front_offset(ScrnInfoPtr pScrn)
    /* If we are still in ScreenInit, there is no screen pixmap to be updated
     * yet.  We'll fix it up at CreateScreenResources.
     */
-   if (!pI830->memory_manager) {
+   if (!pI830->have_gem) {
        data = pI830->FbBase + pScrn->fbOffset; /* default to legacy */
    } else {
       dri_bo *bo = pI830->front_buffer->bo;
@@ -1009,6 +1009,14 @@ static Bool i830_kernel_mode_enabled(ScrnInfoPtr pScrn)
     busIdString = DRICreatePCIBusID(PciInfo);
 
     ret = drmCheckModesettingSupported(busIdString);
+    if (ret)
+	if (xf86LoadKernelModule("i915")) {
+	    ret = drmCheckModesettingSupported(busIdString);
+
+	    /* Be nice to the user and load fbcon too */
+	    if (!ret)
+		(void) xf86LoadKernelModule("fbcon");
+	}
     xfree(busIdString);
     if (ret)
 	return FALSE;
@@ -1406,28 +1414,76 @@ I830AccelMethodInit(ScrnInfoPtr pScrn)
 }
 
 static Bool
+i830_open_drm_master(ScrnInfoPtr scrn)
+{
+    I830Ptr i830 = I830PTR(scrn);
+    struct pci_device *dev = i830->PciInfo;
+    char *busid;
+    drmSetVersion sv;
+    struct drm_i915_getparam gp;
+    int err, has_gem;
+
+    /* We wish we had asprintf, but all we get is XNFprintf. */
+    busid = XNFprintf("pci:%04x:%02x:%02x.%d",
+		      dev->domain, dev->bus, dev->dev, dev->func);
+
+    i830->drmSubFD = drmOpen("i915", busid);
+    if (i830->drmSubFD == -1) {
+	xfree(busid);
+	xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+		   "[drm] Failed to open DRM device for %s\n", busid);
+	return FALSE;
+    }
+
+    xfree(busid);
+
+    /* Check that what we opened was a master or a master-capable FD,
+     * by setting the version of the interface we'll use to talk to it.
+     * (see DRIOpenDRMMaster() in DRI1)
+     */
+    sv.drm_di_major = 1;
+    sv.drm_di_minor = 1;
+    sv.drm_dd_major = -1;
+    err = drmSetInterfaceVersion(i830->drmSubFD, &sv);
+    if (err != 0) {
+	drmClose(i830->drmSubFD);
+	i830->drmSubFD = -1;
+	return FALSE;
+    }
+
+    has_gem = FALSE;
+    gp.param = I915_PARAM_HAS_GEM;
+    gp.value = &has_gem;
+    (void)drmCommandWriteRead(i830->drmSubFD, DRM_I915_GETPARAM,
+			      &gp, sizeof(gp));
+    if (!has_gem) {
+	xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+		   "[drm] Failed to detect GEM.  Kernel 2.6.28 required.\n");
+	drmClose(i830->drmSubFD);
+	i830->drmSubFD = -1;
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
+static void
+i830_close_drm_master(ScrnInfoPtr scrn)
+{
+    I830Ptr i830 = I830PTR(scrn);
+    if (i830->drmSubFD > 0) {
+	drmClose(i830->drmSubFD);
+	i830->drmSubFD = -1;
+    }
+}
+
+static Bool
 I830DrmModeInit(ScrnInfoPtr pScrn)
 {
     I830Ptr pI830 = I830PTR(pScrn);
-    char *bus_id;
-    int ret;
 
     pI830->accel = ACCEL_UXA;
 
-    bus_id = DRICreatePCIBusID(pI830->PciInfo);
-
-    /* Create a bus Id */
-    /* Low level DRM open */
-    ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, bus_id, "i915");
-    xfree(bus_id);
-    if (!ret) {
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		       "[dri] DRIGetVersion failed to open the DRM\n"
-		       "[dri] Disabling DRI.\n");
-	    return FALSE;
-    }
-
-    pI830->drmSubFD = DRIMasterFD(pScrn);
     if (drmmode_pre_init(pScrn, pI830->drmSubFD, pI830->cpp) == FALSE) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		   "Kernel modesetting setup failed\n");
@@ -1436,6 +1492,7 @@ I830DrmModeInit(ScrnInfoPtr pScrn)
     }
 
     pI830->directRenderingType = DRI_NONE;
+    pI830->have_gem = TRUE;
 
     i830_init_bufmgr(pScrn);
 
@@ -1468,11 +1525,17 @@ I830XvInit(ScrnInfoPtr pScrn)
 }
 
 /**
- * This is called per zaphod head (so usually just once) to do initialization
- * before the Screen is created.
+ * This is called before ScreenInit to do any require probing of screen
+ * configuration.
  *
  * This code generally covers probing, module loading, option handling
  * card mapping, and RandR setup.
+ *
+ * Since xf86InitialConfiguration ends up requiring that we set video modes
+ * in order to detect configuration, we end up having to do a lot of driver
+ * setup (talking to the DRM, mapping the device, etc.) in this function.
+ * As a result, we want to set up that server initialization once rather
+ * that doing it per generation.
  */
 static Bool
 I830PreInit(ScrnInfoPtr pScrn, int flags)
@@ -1521,6 +1584,8 @@ I830PreInit(ScrnInfoPtr pScrn, int flags)
       return FALSE;
 
    pI830->PciInfo = xf86GetPciInfoForEntity(pI830->pEnt->index);
+
+   i830_open_drm_master(pScrn);
 
    if (xf86RegisterResources(pI830->pEnt->index, NULL, ResNone)) {
       PreInitCleanup(pScrn);
@@ -2219,7 +2284,7 @@ I830BlockHandler(int i,
 	* fashion.
 	*/
        intel_batch_flush(pScrn, flushed);
-       if (pI830->memory_manager)
+       if (pI830->have_gem)
 	 drmCommandNone(pI830->drmSubFD, DRM_I915_GEM_THROTTLE);
 
        pI830->need_mi_flush = FALSE;
@@ -2319,7 +2384,7 @@ i830_memory_init(ScrnInfoPtr pScrn)
 
     tiled = i830_tiled_width(pI830, &pScrn->displayWidth, pI830->cpp);
     /* Set up our video memory allocator for the chosen videoRam */
-    if (!i830_allocator_init(pScrn, 0, pScrn->videoRam * KB(1))) {
+    if (!i830_allocator_init(pScrn, pScrn->videoRam * KB(1))) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		"Couldn't initialize video memory allocator\n");
 	PreInitCleanup(pScrn);
@@ -2362,7 +2427,7 @@ i830_init_bufmgr(ScrnInfoPtr pScrn)
    if (pI830->bufmgr)
        return;
 
-   if (pI830->memory_manager || pI830->use_drm_mode) {
+   if (pI830->have_gem) {
       int batch_size;
 
       batch_size = 4096 * 4;
@@ -2549,8 +2614,10 @@ I830ScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
    }
 
    if (pI830->use_drm_mode) {
-       pI830->stolen_size = 0;
-       pScrn->videoRam = ~0UL / KB(1);
+       struct pci_device *const device = pI830->PciInfo;
+       int fb_bar = IS_I9XX(pI830) ? 2 : 0;
+
+       pScrn->videoRam = device->regions[fb_bar].size / 1024;
    } else {
        I830AdjustMemory(pScreen);
    }
@@ -2643,7 +2710,7 @@ I830ScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
    }
 
    if (pI830->accel != ACCEL_NONE && !pI830->use_drm_mode) {
-      if (pI830->memory_manager == NULL && pI830->ring.mem->size == 0) {
+      if (!pI830->have_gem && pI830->ring.mem->size == 0) {
 	  xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 		     "Disabling acceleration because the ring buffer "
 		      "allocation failed.\n");
@@ -2828,12 +2895,15 @@ i830AdjustFrame(int scrnIndex, int x, int y, int flags)
 static void
 I830FreeScreen(int scrnIndex, int flags)
 {
-#ifdef INTEL_XVMC
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+#ifdef INTEL_XVMC
     I830Ptr pI830 = I830PTR(pScrn);
     if (pI830 && pI830->XvMCEnabled)
 	intel_xvmc_finish(xf86Screens[scrnIndex]);
 #endif
+
+    i830_close_drm_master(pScrn);
+
    I830FreeRec(xf86Screens[scrnIndex]);
    if (xf86LoaderCheckSymbol("vgaHWFreeHWRec"))
       vgaHWFreeHWRec(xf86Screens[scrnIndex]);
@@ -2867,11 +2937,10 @@ I830LeaveVT(int scrnIndex, int flags)
        /* Evict everything from the bufmgr, as we're about to lose ownership of
 	* the graphics memory.
 	*/
-       if (!pI830->memory_manager)
+       if (!pI830->have_gem) {
 	   intel_bufmgr_fake_evict_all(pI830->bufmgr);
-
-       if (!pI830->memory_manager)
 	   i830_stop_ring(pScrn, TRUE);
+       }
 
        if (pI830->debug_modes) {
 	   i830CompareRegsToSnapshot(pScrn, "After LeaveVT");
@@ -2883,7 +2952,7 @@ I830LeaveVT(int scrnIndex, int flags)
 
    i830_unbind_all_memory(pScrn);
 
-   if (pI830->memory_manager && !pI830->use_drm_mode) {
+   if (pI830->have_gem && !pI830->use_drm_mode) {
       int ret;
 
       /* Tell the kernel to evict all buffer objects and block GTT usage while
@@ -2960,7 +3029,7 @@ I830EnterVT(int scrnIndex, int flags)
    if (!pI830->use_drm_mode)
        i830_disable_render_standby(pScrn);
 
-   if (pI830->memory_manager && !pI830->use_drm_mode) {
+   if (pI830->have_gem && !pI830->use_drm_mode) {
       int ret;
 
       /* Tell the kernel that we're back in control and ready for GTT
@@ -2991,7 +3060,7 @@ I830EnterVT(int scrnIndex, int flags)
        }
 
        /* Re-set up the ring. */
-       if (!pI830->memory_manager) {
+       if (!pI830->have_gem) {
 	   i830_stop_ring(pScrn, FALSE);
 	   i830_start_ring(pScrn);
        }
@@ -3085,6 +3154,9 @@ I830CloseScreen(int scrnIndex, ScreenPtr pScreen)
    free(pI830->offscreenImages);
    pI830->offscreenImages = NULL;
 
+   pScreen->CloseScreen = pI830->CloseScreen;
+   (*pScreen->CloseScreen) (scrnIndex, pScreen);
+
    dri_bufmgr_destroy(pI830->bufmgr);
    pI830->bufmgr = NULL;
 
@@ -3098,8 +3170,7 @@ I830CloseScreen(int scrnIndex, ScreenPtr pScreen)
    pScrn->PointerMoved = pI830->PointerMoved;
    pScrn->vtSema = FALSE;
    pI830->closing = FALSE;
-   pScreen->CloseScreen = pI830->CloseScreen;
-   return (*pScreen->CloseScreen) (scrnIndex, pScreen);
+   return TRUE;
 }
 
 static ModeStatus

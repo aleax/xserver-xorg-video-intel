@@ -405,6 +405,7 @@ typedef struct _I830Rec {
 
    i830_memory *memory_manager;		/**< DRI memory manager aperture */
 
+   Bool have_gem;
    Bool need_mi_flush;
 
    Bool tiling;
@@ -436,6 +437,7 @@ typedef struct _I830Rec {
    int accel_pixmap_offset_alignment;
    int accel_max_x;
    int accel_max_y;
+   int max_gtt_map_size;
 
    I830WriteIndexedByteFunc writeControl;
    I830ReadIndexedByteFunc readControl;
@@ -678,6 +680,7 @@ Bool I830DRI2ScreenInit(ScreenPtr pScreen);
 void I830DRI2CloseScreen(ScreenPtr pScreen);
 
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
+extern int drmmode_get_pipe_from_crtc_id(drm_intel_bufmgr *bufmgr, xf86CrtcPtr crtc);
 
 extern Bool I830AccelInit(ScreenPtr pScreen);
 extern void I830SetupForScreenToScreenCopy(ScrnInfoPtr pScrn, int xdir,
@@ -692,8 +695,7 @@ extern void I830SetupForSolidFill(ScrnInfoPtr pScrn, int color, int rop,
 extern void I830SubsequentSolidFillRect(ScrnInfoPtr pScrn, int x, int y,
 					int w, int h);
 
-Bool i830_allocator_init(ScrnInfoPtr pScrn, unsigned long offset,
-			 unsigned long size);
+Bool i830_allocator_init(ScrnInfoPtr pScrn, unsigned long size);
 void i830_allocator_fini(ScrnInfoPtr pScrn);
 i830_memory * i830_allocate_memory(ScrnInfoPtr pScrn, const char *name,
 				   unsigned long size, unsigned long pitch,
@@ -747,6 +749,7 @@ Bool i830_bind_all_memory(ScrnInfoPtr pScrn);
 Bool i830_unbind_all_memory(ScrnInfoPtr pScrn);
 unsigned long i830_get_fence_size(I830Ptr pI830, unsigned long size);
 unsigned long i830_get_fence_pitch(I830Ptr pI830, unsigned long pitch, int format);
+void i830_set_max_gtt_map_size(ScrnInfoPtr pScrn);
 
 Bool I830BindAGPMemory(ScrnInfoPtr pScrn);
 Bool I830UnbindAGPMemory(ScrnInfoPtr pScrn);
@@ -901,6 +904,7 @@ extern const int I830CopyROP[16];
 #define NEED_NON_STOLEN			0x00000004
 #define NEED_LIFETIME_FIXED		0x00000008
 #define ALLOW_SHARING			0x00000010
+#define DISABLE_REUSE			0x00000020
 
 /* Chipset registers for VIDEO BIOS memory RW access */
 #define _855_DRAM_RW_CONTROL 0x58
