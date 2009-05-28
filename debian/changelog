@@ -1,3 +1,10 @@
+xserver-xorg-video-intel (2:2.7.99.1-2) UNRELEASED; urgency=low
+
+  * Pull from upstream git branch 'master', commit 8e942b70.
+  * Bump libdrm-dev build-dep to 2.4.11.
+
+ -- Julien Cristau <jcristau@debian.org>  Thu, 28 May 2009 19:33:42 +0200
+
 xserver-xorg-video-intel (2:2.7.99.1-1) experimental; urgency=low
 
   * New upstream release candidate.
