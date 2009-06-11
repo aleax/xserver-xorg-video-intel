@@ -118,6 +118,8 @@ static SymTabRec I830Chipsets[] = {
    {PCI_CHIP_G45_G,		"G45/G43"},
    {PCI_CHIP_Q45_G,		"Q45/Q43"},
    {PCI_CHIP_G41_G,		"G41"},
+   {PCI_CHIP_IGDNG_D_G,		"IGDNG_D"},
+   {PCI_CHIP_IGDNG_M_G,		"IGDNG_M"},
    {-1,				NULL}
 };
 
@@ -148,6 +150,8 @@ static PciChipsets I830PciChipsets[] = {
    {PCI_CHIP_G45_G,		PCI_CHIP_G45_G,		RES_SHARED_VGA},
    {PCI_CHIP_Q45_G,		PCI_CHIP_Q45_G,		RES_SHARED_VGA},
    {PCI_CHIP_G41_G,		PCI_CHIP_G41_G,		RES_SHARED_VGA},
+   {PCI_CHIP_IGDNG_D_G,		PCI_CHIP_IGDNG_D_G,		RES_SHARED_VGA},
+   {PCI_CHIP_IGDNG_M_G,		PCI_CHIP_IGDNG_M_G,		RES_SHARED_VGA},
    {-1,				-1,			RES_UNDEFINED}
 };
 
@@ -324,7 +328,7 @@ I830DetectMemory(ScrnInfoPtr pScrn)
    range = gtt_size + 4;
 
    /* new 4 series hardware has seperate GTT stolen with GFX stolen */
-   if (IS_G4X(pI830) || IS_IGD(pI830))
+   if (IS_G4X(pI830) || IS_IGD(pI830) || IS_IGDNG(pI830))
        range = 4;
 
    if (IS_I85X(pI830) || IS_I865G(pI830) || IS_I9XX(pI830)) {
@@ -421,7 +425,7 @@ I830MapMMIO(ScrnInfoPtr pScrn)
    device = pI830->PciInfo;
    err = pci_device_map_range (device,
 			       pI830->MMIOAddr,
-			       I810_REG_SIZE,
+			       pI830->MMIOSize,
 			       PCI_DEV_MAP_FLAG_WRITABLE,
 			       (void **) &pI830->MMIOBase);
    if (err) 
@@ -440,7 +444,7 @@ I830MapMMIO(ScrnInfoPtr pScrn)
 
       if (IS_I965G(pI830)) 
       {
-	 if (IS_G4X(pI830)) {
+	 if (IS_G4X(pI830) || IS_IGDNG(pI830)) {
 	     gttaddr = pI830->MMIOAddr + MB(2);
 	     pI830->GTTMapSize = MB(2);
 	 } else {
@@ -504,7 +508,7 @@ I830UnmapMMIO(ScrnInfoPtr pScrn)
 {
    I830Ptr pI830 = I830PTR(pScrn);
 
-   pci_device_unmap_range (pI830->PciInfo, pI830->MMIOBase, I810_REG_SIZE);
+   pci_device_unmap_range (pI830->PciInfo, pI830->MMIOBase, pI830->MMIOSize);
    pI830->MMIOBase = NULL;
 
    if (IS_I9XX(pI830)) {
@@ -824,7 +828,6 @@ I830PreInitDDC(ScrnInfoPtr pScrn)
    if (!xf86LoadSubModule(pScrn, "ddc")) {
       pI830->ddc2 = FALSE;
    } else {
-      xf86LoaderReqSymLists(I810ddcSymbols, NULL);
       pI830->ddc2 = TRUE;
    }
 
@@ -832,8 +835,6 @@ I830PreInitDDC(ScrnInfoPtr pScrn)
    /* Load I2C if we have the code to use it */
    if (pI830->ddc2) {
       if (xf86LoadSubModule(pScrn, "i2c")) {
-	 xf86LoaderReqSymLists(I810i2cSymbols, NULL);
-
 	 pI830->ddc2 = TRUE;
       } else {
 	 pI830->ddc2 = FALSE;
@@ -1138,6 +1139,12 @@ i830_detect_chipset(ScrnInfoPtr pScrn)
     case PCI_CHIP_G41_G:
 	chipname = "G41";
 	break;
+    case PCI_CHIP_IGDNG_D_G:
+	chipname = "IGDNG_D";
+	break;
+    case PCI_CHIP_IGDNG_M_G:
+	chipname = "IGDNG_M";
+	break;
    default:
 	chipname = "unknown chipset";
 	break;
@@ -1211,6 +1218,7 @@ i830_detect_chipset(ScrnInfoPtr pScrn)
     if (pI830->pEnt->device->IOBase != 0) {
 	pI830->MMIOAddr = pI830->pEnt->device->IOBase;
 	from = X_CONFIG;
+	pI830->MMIOSize = I810_REG_SIZE;
     } else {
 	pI830->MMIOAddr = I810_MEMBASE (pI830->PciInfo, mmio_bar);
 	if (pI830->MMIOAddr == 0) {
@@ -1219,10 +1227,11 @@ i830_detect_chipset(ScrnInfoPtr pScrn)
 	    PreInitCleanup(pScrn);
 	    return FALSE;
 	}
+	pI830->MMIOSize = pI830->PciInfo->regions[mmio_bar].size;
     }
 
-    xf86DrvMsg(pScrn->scrnIndex, from, "IO registers at addr 0x%lX\n",
-	       (unsigned long)pI830->MMIOAddr);
+    xf86DrvMsg(pScrn->scrnIndex, from, "IO registers at addr 0x%lX size %u\n",
+	       (unsigned long)pI830->MMIOAddr, pI830->MMIOSize);
 
     /* Now figure out mapsize on 8xx chips */
     if (IS_I830(pI830) || IS_845G(pI830)) {
@@ -1266,11 +1275,9 @@ I830LoadSyms(ScrnInfoPtr pScrn)
     /* The vgahw module should be loaded here when needed */
     if (!xf86LoadSubModule(pScrn, "vgahw"))
 	return FALSE;
-    xf86LoaderReqSymLists(I810vgahwSymbols, NULL);
 
     if (!xf86LoadSubModule(pScrn, "ramdac"))
        return FALSE;
-    xf86LoaderReqSymLists(I810ramdacSymbols, NULL);
 
     return TRUE;
 }
@@ -1674,8 +1681,6 @@ I830PreInit(ScrnInfoPtr pScrn, int flags)
       PreInitCleanup(pScrn);
       return FALSE;
    }
-
-   xf86LoaderReqSymLists(I810fbSymbols, NULL);
 
    if (!pI830->use_drm_mode) {
        i830CompareRegsToSnapshot(pScrn, "After PreInit");
@@ -2823,8 +2828,9 @@ I830ScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 #ifdef INTEL_XVMC
     pI830->XvMCEnabled = FALSE;
-    from =  xf86GetOptValBool(pI830->Options, OPTION_XVMC,
-			      &pI830->XvMCEnabled) ? X_CONFIG : X_DEFAULT;
+    from = ((pI830->directRenderingType == DRI_DRI2) &&
+            xf86GetOptValBool(pI830->Options, OPTION_XVMC,
+                              &pI830->XvMCEnabled) ? X_CONFIG : X_DEFAULT);
     xf86DrvMsg(pScrn->scrnIndex, from, "Intel XvMC decoder %sabled\n",
 	       pI830->XvMCEnabled ? "en" : "dis");
 #endif

@@ -210,7 +210,6 @@ struct _I830DVODriver {
    unsigned int dvo_reg;
    uint32_t gpio;
    int address;
-   const char **symbols;
    I830I2CVidOutputRec *vid_rec;
    void *dev_priv;
    pointer modhandle;
@@ -416,6 +415,7 @@ typedef struct _I830Rec {
    int Chipset;
    unsigned long LinearAddr;
    unsigned long MMIOAddr;
+   unsigned int MMIOSize;
    IOADDRESS ioBase;
    EntityInfoPtr pEnt;
    struct pci_device *PciInfo;
@@ -499,6 +499,7 @@ typedef struct _I830Rec {
    int lvds_ssc_freq; /* in MHz */
    Bool lvds_dither;
    DisplayModePtr lvds_fixed_mode;
+   DisplayModePtr sdvo_lvds_fixed_mode;
    Bool skip_panel_detect;
    Bool integrated_lvds; /* LVDS config from driver feature BDB */
 
@@ -664,7 +665,9 @@ extern void I830EmitFlush(ScrnInfoPtr pScrn);
 
 extern void I830InitVideo(ScreenPtr pScreen);
 extern void i830_crtc_dpms_video(xf86CrtcPtr crtc, Bool on);
-
+extern xf86CrtcPtr i830_covering_crtc (ScrnInfoPtr pScrn, BoxPtr box,
+				       xf86CrtcPtr desired,
+				       BoxPtr crtc_box_ret);
 int
 i830_crtc_pipe (xf86CrtcPtr crtc);
 
@@ -943,5 +946,24 @@ i830_debug_sync(ScrnInfoPtr scrn)
 {
 }
 #endif
+
+static inline PixmapPtr
+get_drawable_pixmap(DrawablePtr drawable)
+{
+    ScreenPtr screen = drawable->pScreen;
+
+    if (drawable->type == DRAWABLE_PIXMAP)
+	return (PixmapPtr)drawable;
+    else
+	return screen->GetWindowPixmap((WindowPtr)drawable);
+}
+
+static inline Bool
+pixmap_is_scanout(PixmapPtr pixmap)
+{
+    ScreenPtr screen = pixmap->drawable.pScreen;
+
+    return pixmap == screen->GetScreenPixmap(screen);
+}
 
 #endif /* _I830_H_ */
