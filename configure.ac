@@ -22,7 +22,7 @@
 
 AC_PREREQ(2.57)
 AC_INIT([xf86-video-intel],
-        2.7.99.901,
+        2.7.99.902,
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         xf86-video-intel)
 
@@ -47,6 +47,15 @@ AC_PROG_CC
 AM_PROG_CC_C_O
 
 AC_CHECK_PROG(gen4asm, [intel-gen4asm], yes, no)
+
+if test x$gen4asm != xno; then
+	intel-gen4asm -g 5 src/render_program/exa_sf.g4a > /dev/null
+
+	if test "$?" !=  "0"; then
+		echo "Error: Require new intel-gen4asm with -g option!"
+		exit 1
+	fi
+fi
 AM_CONDITIONAL(HAVE_GEN4ASM, test x$gen4asm = xyes)
 
 AC_CHECK_HEADERS(sys/mman.h)
@@ -195,4 +204,5 @@ AC_OUTPUT([
 	src/sil164/Makefile
 	src/tfp410/Makefile
 	man/Makefile
+	src/render_program/Makefile
 ])

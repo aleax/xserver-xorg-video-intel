@@ -95,6 +95,11 @@ struct i830_sdvo_priv {
      * This is set if we detect output of sdvo device as LVDS.
      */
     Bool is_lvds;
+    DisplayModePtr sdvo_lvds_fixed_mode;
+    /**
+     *This is set if output is LVDS or TV.
+     */
+    uint8_t sdvo_flags;
 
     /**
      * Returned SDTV resolutions allowed for the current format, if the
@@ -614,6 +619,8 @@ static Bool
 i830_sdvo_create_preferred_input_timing(xf86OutputPtr output, uint16_t clock,
 					uint16_t width, uint16_t height)
 {
+    I830OutputPrivatePtr    intel_output = output->driver_private;
+    struct i830_sdvo_priv   *dev_priv = intel_output->dev_priv;
     struct i830_sdvo_preferred_input_timing_args args;
     uint8_t status;
 
@@ -622,7 +629,11 @@ i830_sdvo_create_preferred_input_timing(xf86OutputPtr output, uint16_t clock,
     args.width = width;
     args.height = height;
     args.interlace = 0;
-    args.scaled = 0;
+    if (dev_priv->is_lvds &&
+        (dev_priv->sdvo_lvds_fixed_mode->HDisplay != width ||
+        (dev_priv->sdvo_lvds_fixed_mode->VDisplay != height)))
+        args.scaled = 1;
+
     i830_sdvo_write_cmd(output, SDVO_CMD_CREATE_PREFERRED_INPUT_TIMING,
 			&args, sizeof(args));
     status = i830_sdvo_read_response(output, NULL, 0);
@@ -1012,12 +1023,7 @@ i830_sdvo_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
     I830OutputPrivatePtr    intel_output = output->driver_private;
     struct i830_sdvo_priv   *dev_priv = intel_output->dev_priv;
 
-    if (!dev_priv->is_tv) {
-	/* Make the CRTC code factor in the SDVO pixel multiplier.  The SDVO
-	 * device will be told of the multiplier during mode_set.
-	 */
-	adjusted_mode->Clock *= i830_sdvo_get_pixel_multiplier(mode);
-    } else {
+    if (dev_priv->is_tv) {
 	struct i830_sdvo_dtd output_dtd;
 	Bool success;
 
@@ -1038,7 +1044,6 @@ i830_sdvo_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
 	/* Set the input timing to the screen. Assume always input 0. */
 	i830_sdvo_set_target_input(output, TRUE, FALSE);
 
-
 	success = i830_sdvo_create_preferred_input_timing(output,
 							  mode->Clock / 10,
 							  mode->HDisplay,
@@ -1049,6 +1054,7 @@ i830_sdvo_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
 	    i830_sdvo_get_preferred_input_timing(output, &input_dtd);
 
 	    i830_sdvo_get_mode_from_dtd(adjusted_mode, &input_dtd);
+	    dev_priv->sdvo_flags = input_dtd.part2.sdvo_flags;
 
 	    xf86SetModeCrtc(adjusted_mode, 0);
 
@@ -1064,7 +1070,47 @@ i830_sdvo_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
 	} else {
 	    return FALSE;
 	}
-    }
+    } else if (dev_priv->is_lvds) {
+        struct i830_sdvo_dtd output_dtd;
+        Bool success;
+
+        /* Set output timings */
+        i830_sdvo_get_dtd_from_mode(&output_dtd,
+                                    dev_priv->sdvo_lvds_fixed_mode);
+        i830_sdvo_set_target_output(output, dev_priv->controlled_output);
+        i830_sdvo_set_output_timing(output, &output_dtd);
+
+        /* Set the input timing to the screen. Assume always input 0. */
+        i830_sdvo_set_target_input(output, TRUE, FALSE);
+
+
+        success = i830_sdvo_create_preferred_input_timing(output,
+                                                          mode->Clock / 10,
+                                                          mode->HDisplay,
+                                                          mode->VDisplay);
+        if (success) {
+            struct i830_sdvo_dtd input_dtd;
+
+            i830_sdvo_get_preferred_input_timing(output, &input_dtd);
+
+            i830_sdvo_get_mode_from_dtd(adjusted_mode, &input_dtd);
+            dev_priv->sdvo_flags = input_dtd.part2.sdvo_flags;
+
+            xf86SetModeCrtc(adjusted_mode, 0);
+
+            /* adjust origin mode's clock for current input,
+              for correct pixel mulitiplier setting. */
+            mode->Clock = adjusted_mode->Clock;
+
+            /* Clock range is required to be in 100-200Mhz */
+            adjusted_mode->Clock *= i830_sdvo_get_pixel_multiplier(mode);
+        } else
+            return FALSE;
+    } else
+	/* Make the CRTC code factor in the SDVO pixel multiplier.  The SDVO
+	 * device will be told of the multiplier during mode_set.
+	 */
+	adjusted_mode->Clock *= i830_sdvo_get_pixel_multiplier(mode);
 
     return TRUE;
 }
@@ -1108,9 +1154,10 @@ i830_sdvo_mode_set(xf86OutputPtr output, DisplayModePtr mode,
 
     /* We have tried to get input timing in mode_fixup, and filled into
        adjusted_mode */
-    if (dev_priv->is_tv)
+    if (dev_priv->is_tv || dev_priv->is_lvds) {
 	i830_sdvo_get_dtd_from_mode(&input_dtd, adjusted_mode);
-    else
+        input_dtd.part2.sdvo_flags = dev_priv->sdvo_flags;
+    } else
 	i830_sdvo_get_dtd_from_mode(&input_dtd, mode);
 
     /* If it's a TV, we already set the output timing in mode_fixup.
@@ -1123,7 +1170,7 @@ i830_sdvo_mode_set(xf86OutputPtr output, DisplayModePtr mode,
     if (dev_priv->is_tv)
 	i830_sdvo_set_tv_format(output);
 
-    if (!dev_priv->is_tv) {
+    if (!dev_priv->is_tv && !dev_priv->is_lvds) {
 	/* Set the output timing to the screen */
 	i830_sdvo_set_output_timing(output, &input_dtd);
     }
@@ -1186,6 +1233,8 @@ i830_sdvo_mode_set(xf86OutputPtr output, DisplayModePtr mode,
     } else {
 	sdvox |= (sdvo_pixel_multiply - 1) << SDVO_PORT_MULTIPLY_SHIFT;
     }
+    if (dev_priv->sdvo_flags & SDVO_STALL_FLAG)
+        sdvox |= SDVO_STALL_SELECT;
 
     i830_sdvo_write_sdvox(output, sdvox);
 
@@ -1344,6 +1393,16 @@ i830_sdvo_mode_valid(xf86OutputPtr output, DisplayModePtr pMode)
 
     if (dev_priv->pixel_clock_max < pMode->Clock)
 	return MODE_CLOCK_HIGH;
+    if (dev_priv->is_lvds) {
+        if (dev_priv->sdvo_lvds_fixed_mode == NULL)
+            return MODE_PANEL;
+
+        if (pMode->HDisplay > dev_priv->sdvo_lvds_fixed_mode->HDisplay)
+            return MODE_PANEL;
+
+        if (pMode->VDisplay > dev_priv->sdvo_lvds_fixed_mode->VDisplay)
+            return MODE_PANEL;
+    }
 
     return MODE_OK;
 }
@@ -1557,6 +1616,8 @@ i830_sdvo_check_hdmi_encode (xf86OutputPtr output)
 /* This function will try to fetch native modes for sdvo lvds output*/
 static DisplayModePtr i830_sdvo_lvds_fetch_modes(xf86OutputPtr  output)
 {
+    I830OutputPrivatePtr intel_output =output->driver_private;
+    struct i830_sdvo_priv *dev_priv = intel_output->dev_priv;
     I830Ptr                 pI830 = I830PTR(output->scrn);
     DisplayModePtr          modes;
 
@@ -1574,8 +1635,11 @@ static DisplayModePtr i830_sdvo_lvds_fetch_modes(xf86OutputPtr  output)
 
 end:
     /* Guarantee the the first preferred mode is chosen by xserver */
-    if (modes != NULL)
+    if (modes != NULL) {
+        dev_priv->sdvo_lvds_fixed_mode = xf86DuplicateMode(modes);
         modes->type |= (M_T_DRIVER | M_T_PREFERRED);
+        xf86SetModeCrtc(dev_priv->sdvo_lvds_fixed_mode, 0);
+    }
     return modes;
 }
 
@@ -1959,6 +2023,10 @@ i830_sdvo_destroy (xf86OutputPtr output)
 		xfree(randr_output->name);
 	}
 
+	if (dev_priv->sdvo_lvds_fixed_mode)
+		xf86DeleteMode(&dev_priv->sdvo_lvds_fixed_mode,
+			dev_priv->sdvo_lvds_fixed_mode);
+
 	xfree (intel_output);
     }
 }
@@ -2135,7 +2203,70 @@ i830_sdvo_select_ddc_bus(struct i830_sdvo_priv *dev_priv)
     /* Corresponds to SDVO_CONTROL_BUS_DDCx */
     dev_priv->ddc_bus = 1 << num_bits;
 }
+/**
+ * find the slave address for the given SDVO port based on the info
+ * parsed in general definition blocks
+ * If the slave address is found in the SDVO device info parsed from
+ * VBT,it will be returned. Otherwise it will return the slave address
+ * by the following steps.
+ * and 0x72 for SDVOC port.
+ * a. If one SDVO device info is found in another DVO port, it will return
+ * the slave address that is not used. For example: if 0x70 is used,
+ * then 0x72 is returned.
+ * b. If no SDVO device info is found in another DVO port, it will return
+ * 0x70 for SDVOB and 0x72 for SDVOC port.
+ */
+static
+void i830_find_sdvo_slave(ScrnInfoPtr pScrn, int output_device,
+			  uint8_t *slave_addr)
+{
+    uint8_t temp_slave_addr;
+    I830Ptr pI830 = I830PTR(pScrn);
+    uint8_t dvo_port, dvo2_port;
+    struct sdvo_device_mapping *p_mapping;
 
+    if (output_device == SDVOB) {
+	/* DEVICE_PORT_DVOB */
+	dvo_port = 0;
+	dvo2_port = 1;
+    } else {
+	/* DEVICE_POTR_DVOC */
+	dvo_port = 1;
+	dvo2_port = 0;
+    }
+
+    p_mapping = &(pI830->sdvo_mappings[dvo_port]);
+    temp_slave_addr = p_mapping->slave_addr;
+    if (temp_slave_addr) {
+	/* slave address is found . return it */
+	*slave_addr = temp_slave_addr;
+	return ;
+    }
+    /* Check whether the SDVO device info is found in another dvo port */
+    p_mapping = &(pI830->sdvo_mappings[dvo2_port]);
+    temp_slave_addr = p_mapping->slave_addr;
+    if (!temp_slave_addr) {
+	/* no SDVO device is found in another DVO port */
+	/* it will return 0x70 for SDVOB and 0x72 for SDVOC */
+	if (output_device == SDVOB)
+		temp_slave_addr = 0x70;
+	else
+		temp_slave_addr = 0x72;
+	*slave_addr = temp_slave_addr;
+	return ;
+    }
+    /* return the slave address that is not used.
+     * If the 0x70 is used, then 0x72 is returned.
+     * If the 0x72 is used, then 0x70 is returned.
+     */
+    if (temp_slave_addr == 0x70)
+	temp_slave_addr = 0x72;
+    else
+	temp_slave_addr = 0x70;
+
+    *slave_addr = temp_slave_addr;
+    return ;
+}
 Bool
 i830_sdvo_init(ScrnInfoPtr pScrn, int output_device)
 {
@@ -2145,6 +2276,10 @@ i830_sdvo_init(ScrnInfoPtr pScrn, int output_device)
     int			    i;
     unsigned char	    ch[0x40];
     I2CBusPtr		    i2cbus = NULL, ddcbus;
+    uint8_t slave_addr;
+
+    slave_addr = 0;
+    i830_find_sdvo_slave(pScrn, output_device, &slave_addr);
 
     output = xf86OutputCreate (pScrn, &i830_sdvo_output_funcs,NULL);
     if (!output)
@@ -2180,14 +2315,12 @@ i830_sdvo_init(ScrnInfoPtr pScrn, int output_device)
 	xf86OutputDestroy (output);
 	return FALSE;
     }
-
     if (output_device == SDVOB) {
 	dev_priv->d.DevName = "SDVO Controller B";
-	dev_priv->d.SlaveAddr = 0x70;
     } else {
 	dev_priv->d.DevName = "SDVO Controller C";
-	dev_priv->d.SlaveAddr = 0x72;
     }
+    dev_priv->d.SlaveAddr = slave_addr;
     dev_priv->d.pI2CBus = i2cbus;
     dev_priv->d.DriverPrivate.ptr = output;
     dev_priv->output_device = output_device;

@@ -317,18 +317,17 @@ enum backlight_control {
     BCM_KERNEL,
 };
 
-typedef enum accel_method {
-    ACCEL_UNINIT = 0,
-    ACCEL_NONE,
-    ACCEL_UXA
-} accel_method_t;
-
 enum dri_type {
     DRI_DISABLED,
     DRI_NONE,
     DRI_DRI2
 };
-
+struct sdvo_device_mapping {
+   uint8_t dvo_port;
+   uint8_t slave_addr;
+   uint8_t dvo_wiring;
+   uint8_t initialized;
+};
 typedef struct _I830Rec {
    unsigned char *MMIOBase;
    unsigned char *GTTBase;
@@ -409,6 +408,7 @@ typedef struct _I830Rec {
 
    Bool tiling;
    Bool fb_compression;
+   Bool swapbuffers_wait;
 
    Bool CursorNeedsPhysical;
 
@@ -425,7 +425,6 @@ typedef struct _I830Rec {
 
    Bool fence_used[FENCE_NEW_NR];
 
-   accel_method_t accel;
    CloseScreenProcPtr CloseScreen;
 
    void (*batch_flush_notify)(ScrnInfoPtr pScrn);
@@ -608,6 +607,7 @@ typedef struct _I830Rec {
 
     /** User option to print acceleration fallback info to the server log. */
    Bool fallback_debug;
+   struct sdvo_device_mapping sdvo_mappings[2];
 } I830Rec;
 
 #define I830PTR(p) ((I830Ptr)((p)->driverPrivate))
@@ -684,7 +684,10 @@ void I830DRI2CloseScreen(ScreenPtr pScreen);
 
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
 extern int drmmode_get_pipe_from_crtc_id(drm_intel_bufmgr *bufmgr, xf86CrtcPtr crtc);
+extern int drmmode_output_dpms_status(xf86OutputPtr output);
 
+extern Bool i830_crtc_on(xf86CrtcPtr crtc);
+extern int i830_crtc_to_pipe(xf86CrtcPtr crtc);
 extern Bool I830AccelInit(ScreenPtr pScreen);
 extern void I830SetupForScreenToScreenCopy(ScrnInfoPtr pScrn, int xdir,
 					   int ydir, int rop,
@@ -817,8 +820,7 @@ i830_wait_ring_idle(ScrnInfoPtr pScrn)
 {
    I830Ptr pI830 = I830PTR(pScrn);
 
-   if (pI830->accel != ACCEL_NONE)
-       I830WaitLpRing(pScrn, pI830->ring.mem->size - 8, 0);
+   I830WaitLpRing(pScrn, pI830->ring.mem->size - 8, 0);
 }
 
 static inline int i830_fb_compression_supported(I830Ptr pI830)
@@ -829,10 +831,11 @@ static inline int i830_fb_compression_supported(I830Ptr pI830)
 	return FALSE;
     if (IS_IGD(pI830))
 	return FALSE;
-    /* fbc depends on tiled surface. And we don't support tiled
-     * front buffer with unaccelerated.
+    if (IS_IGDNG(pI830))
+	return FALSE;
+    /* fbc depends on tiled surface.
      */
-    if (!pI830->tiling || (IS_I965G(pI830) && pI830->accel == ACCEL_NONE))
+    if (!pI830->tiling)
 	return FALSE;
     /* We have not gotten FBC to work consistently on 965GM. Our best
      * working theory right now is that FBC simply isn't reliable on
