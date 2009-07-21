@@ -1,3 +1,10 @@
+xserver-xorg-video-intel (2:2.8.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+    + Fixes crash at startup if KMS is not used, closes: #537052.
+
+ -- Brice Goglin <bgoglin@debian.org>  Tue, 21 Jul 2009 08:15:09 +0200
+
 xserver-xorg-video-intel (2:2.7.99.902-1) experimental; urgency=low
 
   * New upstream release candidate.

@@ -1,3 +1,59 @@
+commit 5d50a949b3c5d0ad2bc4cf48ab25da1f707a4f6f
+Author: Carl Worth <cworth@cworth.org>
+Date:   Mon Jul 20 22:59:37 2009 -0700
+
+    Increment version number to 2.8.0 for release.
+
+commit b12220bd81f3a0509a3746dac3258e53f3879b23
+Author: Carl Worth <cworth@cworth.org>
+Date:   Mon Jul 20 22:59:02 2009 -0700
+
+    NEWS: Add notes for 2.8.0 release
+    
+    Many thanks to Gordon for his notes from http://intellinuxgraphics.org/2009Q2.html
+
+commit bb3007384298cb57625ec0b3868dff9b23568f3e
+Author: Eric Anholt <eric@anholt.net>
+Date:   Thu Jul 16 12:56:07 2009 -0700
+
+    Really fix i915 render.  Fail at commit --amend.
+
+commit 8dd7ccf37e2de6d80b556e6d18af244cefc1e417
+Author: Eric Anholt <eric@anholt.net>
+Date:   Thu Jul 16 11:40:51 2009 -0700
+
+    Fix 915-class Render after the 8xx-class Render fix.
+    
+    The two shared i830_composite.c, so giving i830 atomic batch support
+    triggered anger about starting i830's atomic area while in i915's atomic
+    area.  Instead, split the emit-a-primitive stuff from the state emission.
+
+commit a1e6abb5ca89d699144d10fdc4309b3b78f2f7a9
+Author: Eric Anholt <eric@anholt.net>
+Date:   Wed Jul 15 14:15:10 2009 -0700
+
+    Use batch_start_atomic to fix batchbuffer wrapping problems with 8xx render.
+    
+    Bug #22483.
+
+commit e386e7b14b139f15205e14b173e8222bf38d9e18
+Author: Keith Packard <keithp@keithp.com>
+Date:   Wed Jul 15 09:43:04 2009 -0700
+
+    Reset framebuffer offset when rebinding aperture (22760).
+    
+    scrn->fbOffset may be changed when binding objects to the aperture during
+    server initialization or VT enter. This was accidentally removed when the
+    NoAlloc option was eliminated.
+    
+    Signed-off-by: Keith Packard <keithp@keithp.com>
+
+commit b74bf3f9a65af9e72921d4e9028d9d4d023f8bc6
+Author: Barry Scott <barry.scott@onelan.co.uk>
+Date:   Mon Jul 13 16:34:20 2009 -0700
+
+    Fix XV scan line calculation when rotated.
+
 commit 82905c7c0b871a97ec435a765c2ca407903ba595
 Author: Carl Worth <cworth@cworth.org>
 Date:   Mon Jul 13 05:29:49 2009 -0700
