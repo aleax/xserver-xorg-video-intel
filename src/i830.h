@@ -468,14 +468,20 @@ typedef struct _I830Rec {
   /** Transform pointers for src/mask, or NULL if identity */
    PictTransform *transform[2];
    float coord_adjust;
+
+   /* i830 render accel state */
+   PixmapPtr render_src, render_mask, render_dst;
+   PicturePtr render_src_picture, render_mask_picture, render_dst_picture;
+   uint32_t render_dst_format;
+   Bool needs_render_state_emit;
+   uint32_t cblend, ablend, s8_blendctl;
+
    /* i915 render accel state */
    uint32_t mapstate[6];
    uint32_t samplerstate[6];
 
    struct {
       int op;
-      PicturePtr pSrcPicture, pMaskPicture, pDstPicture;
-      PixmapPtr pSrc, pMask, pDst;
       uint32_t dst_format;
       Bool is_nearest;
       Bool needs_emit;
@@ -780,6 +786,9 @@ i830_transform_is_affine (PictTransformPtr t);
 
 void i830_composite(PixmapPtr pDst, int srcX, int srcY,
 		    int maskX, int maskY, int dstX, int dstY, int w, int h);
+void i830_emit_composite_primitive(PixmapPtr pDst, int srcX, int srcY,
+				   int maskX, int maskY, int dstX, int dstY,
+				   int w, int h);
 void i830_done_composite(PixmapPtr pDst);
 /* i915_render.c */
 Bool i915_check_composite(int op, PicturePtr pSrc, PicturePtr pMask,
@@ -790,6 +799,7 @@ Bool i915_prepare_composite(int op, PicturePtr pSrc, PicturePtr pMask,
 void i915_composite(PixmapPtr pDst, int srcX, int srcY,
 		    int maskX, int maskY, int dstX, int dstY, int w, int h);
 void i915_batch_flush_notify(ScrnInfoPtr pScrn);
+void i830_batch_flush_notify(ScrnInfoPtr scrn);
 /* i965_render.c */
 unsigned int gen4_render_state_size(ScrnInfoPtr pScrn);
 void gen4_render_state_init(ScrnInfoPtr pScrn);
