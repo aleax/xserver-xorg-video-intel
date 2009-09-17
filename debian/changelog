@@ -3,6 +3,7 @@ xserver-xorg-video-intel (2:2.8.1-2) UNRELEASED; urgency=low
   * Re-enable render accel on 8xx.  The major problem turned out to be related
     to agp chipset flushing (see #541307), so hopefully this should work now.
   * Add missing xsfclean dependency to debian/rules clean.
+  * Bump Standards-Version to 3.8.3 (no changes).
 
  -- Julien Cristau <jcristau@debian.org>  Thu, 17 Sep 2009 20:43:00 +0200
 
