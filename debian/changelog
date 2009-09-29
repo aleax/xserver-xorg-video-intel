@@ -1,3 +1,9 @@
+xserver-xorg-video-intel (2:2.9.0-2) UNRELEASED; urgency=low
+
+  * Build against xserver 1.7 RC.
+
+ -- Julien Cristau <jcristau@debian.org>  Tue, 29 Sep 2009 21:51:17 +0200
+
 xserver-xorg-video-intel (2:2.9.0-1) unstable; urgency=low
 
   * New upstream release.
