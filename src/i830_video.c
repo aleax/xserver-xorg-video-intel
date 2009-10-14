@@ -1502,10 +1502,10 @@ I830CopyPackedData(I830PortPrivPtr pPriv,
 	    for (j = 0; j < w; j+=2) {
 		/* Copy U */
 		dst[(((h - i)*2) - 3) + (j * dstPitch)] = src[(j*2) + 1 + (i * srcPitch)];
-		dst[(((h - i)*2) - 3) + ((j - 1) * dstPitch)] = src[(j*2) + 1 + ((i+1) * srcPitch)];
+		dst[(((h - i)*2) - 3) + ((j + 1) * dstPitch)] = src[(j*2) + 1 + ((i+1) * srcPitch)];
 		/* Copy V */
 		dst[(((h - i)*2) - 1) + (j * dstPitch)] = src[(j*2) + 3 + (i * srcPitch)];
-		dst[(((h - i)*2) - 1) + ((j - 1) * dstPitch)] = src[(j*2) + 3 + ((i+1) * srcPitch)];
+		dst[(((h - i)*2) - 1) + ((j + 1) * dstPitch)] = src[(j*2) + 3 + ((i+1) * srcPitch)];
 	    }
 	}
 	break;
