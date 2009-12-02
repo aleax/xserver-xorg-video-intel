@@ -1,8 +1,12 @@
-xserver-xorg-video-intel (2:2.9.1-2) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.9.1-1+exp1) UNRELEASED; urgency=low
 
+  [ Julien Cristau ]
   * Enable kernel mode setting by default on linux (closes: #555906).
 
- -- Julien Cristau <jcristau@debian.org>  Wed, 25 Nov 2009 17:09:10 +0100
+  [ Brice Goglin ]
+  * Build against xserver 1.7.
+
+ -- Brice Goglin <bgoglin@debian.org>  Wed, 02 Dec 2009 15:49:30 +0100
 
 xserver-xorg-video-intel (2:2.9.1-1) unstable; urgency=medium
 
