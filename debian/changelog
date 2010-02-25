@@ -1,8 +1,13 @@
-xserver-xorg-video-intel (2:2.9.1-3) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.10.0-1) UNRELEASED; urgency=low
 
+  [ Julien Cristau ]
   * Rename the build directory to not include DEB_BUILD_GNU_TYPE for no
     good reason.  Thanks, Colin Watson!
   * Remove myself from Uploaders
+
+  [ Brice Goglin ]
+  * New upstream release, closes: #567829.
+    + User mode-setting is not supported anymore.
 
  -- Julien Cristau <jcristau@debian.org>  Sat, 16 Jan 2010 16:47:17 +0000
 
