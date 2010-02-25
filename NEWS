@@ -1,25 +1,68 @@
-Release 2.9.1 (2009-10-26)
-==========================
-We are pleased to announce a maintenance release (2.9.1) of the
-xf86-video-intel driver. This release comes one month after 2.9.0 and
-consists only of a few, hand-picked bug fixes since that release.
+Release 1.10.0 (2010-01-04)
+===========================
+New requirements of 2.10 compared to 2.9
+----------------------------------------
+ * Linux kernel with kernel-modesetting (KMS)
 
-Complete list of fixes in 2.9.1 compared to 2.9.0
--------------------------------------------------
- * Fix corruption and artifacts due to wrong colors in the colormap
-   with X server 1.7
+   All user-modesetting code has now been removed from the driver.
+   We highly recommend kernel version 2.6.32 or later.
 
- * Fix incorrect rendering, such as missing scrollbar arrows in some
-   themes (http://bugs.freedesktop.org/show_bug.cgi?id=24459)
+ * Libdrm >= 2.4.16
 
- * Fix black screen when X server is reset
-   (https://bugs.freedesktop.org/show_bug.cgi?id=24383)
+New features in 2.10 compared to 2.9
+------------------------------------
+ * New driver debugging options available in xorg.conf
+   (DebugFlushBatches, DebugFlushCaches, DebugWait). See "man intel"
+   for more details.
 
- * Fix regressions detecting DVI monitors
+ * Video overlay support with KMS. This currently requires Linux
+   2.6.33, but a backport to 2.6.32 is available here:
 
-   http://bugs.freedesktop.org/show_bug.cgi?id=24255
-   http://bugs.freedesktop.org/show_bug.cgi?id=24282
-   http://bugs.freedesktop.org/show_bug.cgi?id=24458
+   http://gitorious.org/daniel-s-linux-stuff/linux-kernel/commits/intel-kms-overlay-for-2.6.32
+
+Notable fixes in 2.10 compared to 2.9
+-----------------------------------
+ * Fix crash when XRenderComposite is called with a -1 value for
+   width/height, (crash at login when using compiz).
+
+   http://bugs.freedesktop.org/show_bug.cgi?id=24724
+
+ * Fix to support larger extended desktops, (such as a 2560x1600 plus a
+   1920x1200 monitor).
+
+
+ * Fix glyph corruption due to insufficient cache flushing:
+
+   https://bugs.freedesktop.org/show_bug.cgi?id=24315
+
+Several other correctness and performance fixes are also included.
+
+Note: The driver code of the 2.10.0 release is identical to that of
+the 2.9.99.901 release candidate. The only changes in 2.10.0 compared
+to 2.9.99.902 are a minor change to the configure script, and some
+small updates to the documentation.
+
+Snapshot 2.9.99.902 (2009-12-10)
+================================
+This is the second release candidate in preparation for the upcoming
+2.10.0 release. We will appreciate any feedback we can get from
+testing of this snapshot to improve the 2.10.0 release.
+
+Compared to the previous snapshot, this snapshot now correctly
+verifies that libdrm 2.4.16 (or newer) is available. The previous
+snapshot also required libdrm 2.4.16 for correct functionality, but
+neglected to notify the user of this at configure, compile, or install
+time and would instead simply fail to run.
+
+Snapshot 2.9.99.901 (2009-11-30)
+================================
+This is the first release candidate in preparation for the upcoming
+2.10.0 release. We will appreciate any feedback we can get from
+testing of this snapshot to improve the 2.10.0 release.
+
+With this snapshot, the xf86-video-intel driver requires kernel
+modesetting (KMS) as all of the user modesetting (UMS) support has
+been removed from the driver.
 
 Release 2.9.0 (2009-09-28)
 ==========================
