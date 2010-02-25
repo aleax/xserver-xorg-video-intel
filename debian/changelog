@@ -8,6 +8,7 @@ xserver-xorg-video-intel (2:2.10.0-1) UNRELEASED; urgency=low
   [ Brice Goglin ]
   * New upstream release, closes: #567829.
     + User mode-setting is not supported anymore.
+  * Bump xutils-dev build dependency for new util-macros.
 
  -- Julien Cristau <jcristau@debian.org>  Sat, 16 Jan 2010 16:47:17 +0000
 
