@@ -62,11 +62,11 @@ Description: X.Org X server -- Intel i8xx, i9xx display driver
 Package: xserver-xorg-video-intel-dbg
 Architecture: amd64 hurd-i386 i386 kfreebsd-i386 kfreebsd-amd64 netbsd-i386
 Depends: xserver-xorg-video-intel (= ${binary:Version}), ${shlibs:Depends}
+Recommends: intel-gpu-tools
 Section: debug
 Priority: extra
 Description: X.Org X server -- Intel i8xx, i9xx display driver (debug symbols)
  This driver provides support for the Intel i8xx and i9xx family of chipsets,
  including i810, i815, i830, i845, i855, i865, i915, and i945 series chips.
  .
- This package provides debugging symbols for this Xorg X driver, and the
- intel_reg_dumper helper.
+ This package provides debugging symbols for this Xorg X driver.
