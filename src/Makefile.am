@@ -18,7 +18,7 @@
 #  IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 #  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-SUBDIRS = xvmc bios_reader reg_dumper render_program
+SUBDIRS = xvmc render_program
 
 # this is obnoxious:
 # -module lets us name the module exactly how we want
@@ -39,8 +39,7 @@ INTEL_DRI_SRCS = \
          i810_dri.c \
          i810_dri.h \
          i830_dri.c \
-         i810_hwmc.c \
-         i830_dri.h
+         i810_hwmc.c
 
 INTEL_XVMC_SRCS = \
 	 i830_hwmc.h \
@@ -70,14 +69,12 @@ intel_drv_la_SOURCES = \
          i830_accel.c \
          i830_batchbuffer.c \
          i830_batchbuffer.h \
-         i830_common.h \
          i830_driver.c \
          i830.h \
          i830_memory.c \
          i830_video.c \
          i830_video.h \
 	 i830_reg.h \
-         i830_ring.h \
 	 i915_3d.c \
 	 i915_3d.h \
 	 i915_reg.h \
@@ -92,9 +89,7 @@ intel_drv_la_SOURCES = \
 EXTRA_DIST = 		\
 	$(XMODE_SRCS)	\
 	$(INTEL_DRI_SRCS) \
-	$(INTEL_XVMC_SRCS) \
-	i830_bios.h \
-	i830_display.h
+	$(INTEL_XVMC_SRCS)
 
 if DRI
 intel_drv_la_SOURCES += \

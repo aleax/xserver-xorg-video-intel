@@ -67,8 +67,6 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <X11/extensions/Xv.h>
 #include "shadow.h"
 #include "i830.h"
-#include "i830_display.h"
-#include "i830_bios.h"
 #include "i830_video.h"
 #if HAVE_SYS_MMAN_H && HAVE_MPROTECT
 #include <sys/mman.h>
@@ -232,24 +230,19 @@ const OptionInfoRec *I830AvailableOptions(int chipid, int busid)
 
 static Bool I830GetRec(ScrnInfoPtr scrn)
 {
-	intel_screen_private *intel;
-
 	if (scrn->driverPrivate)
 		return TRUE;
-	intel = scrn->driverPrivate = xnfcalloc(sizeof(intel_screen_private), 1);
+	scrn->driverPrivate = xnfcalloc(sizeof(intel_screen_private), 1);
+
 	return TRUE;
 }
 
 static void I830FreeRec(ScrnInfoPtr scrn)
 {
-	intel_screen_private *intel;
-
 	if (!scrn)
 		return;
 	if (!scrn->driverPrivate)
 		return;
-
-	intel = intel_get_screen_private(scrn);
 
 	xfree(scrn->driverPrivate);
 	scrn->driverPrivate = NULL;
@@ -402,71 +395,6 @@ int i830_pad_drawable_width(int width, int cpp)
 {
 	return (width + 63) & ~63;
 }
-
-static Bool i830_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
-{
-#ifdef DRI2
-	intel_screen_private *intel = intel_get_screen_private(scrn);
-	int old_width = scrn->displayWidth;
-#endif
-	int old_x = scrn->virtualX;
-	int old_y = scrn->virtualY;
-
-	if (old_x == width && old_y == height)
-		return TRUE;
-
-	scrn->virtualX = width;
-	scrn->virtualY = height;
-#ifdef DRI2
-	if (intel->front_buffer) {
-		i830_memory *new_front, *old_front;
-		Bool tiled;
-		ScreenPtr screen = screenInfo.screens[scrn->scrnIndex];
-
-		scrn->displayWidth = i830_pad_drawable_width(width, intel->cpp);
-		tiled = i830_tiled_width(intel, &scrn->displayWidth, intel->cpp);
-		xf86DrvMsg(scrn->scrnIndex, X_INFO,
-			   "Allocate new frame buffer %dx%d stride %d\n", width,
-			   height, scrn->displayWidth);
-		intel_sync(scrn);
-		i830WaitForVblank(scrn);
-		new_front = i830_allocate_framebuffer(scrn);
-		if (!new_front) {
-			scrn->virtualX = old_x;
-			scrn->virtualY = old_y;
-			scrn->displayWidth = old_width;
-			return FALSE;
-		}
-		old_front = intel->front_buffer;
-		intel->front_buffer = new_front;
-		i830_set_pixmap_bo(screen->GetScreenPixmap(screen),
-				   new_front->bo);
-		scrn->fbOffset = intel->front_buffer->offset;
-
-		screen->ModifyPixmapHeader(screen->GetScreenPixmap(screen),
-					   width, height, -1, -1,
-					   scrn->displayWidth * intel->cpp,
-					   NULL);
-
-		/* ick. xf86EnableDisableFBAccess smashes the screen pixmap devPrivate,
-		 * so update the value it uses
-		 */
-		scrn->pixmapPrivate.ptr = NULL;
-		xf86DrvMsg(scrn->scrnIndex, X_INFO,
-			   "New front buffer at 0x%lx\n",
-			   intel->front_buffer->offset);
-		i830_set_new_crtc_bo(scrn);
-		intel_sync(scrn);
-		i830WaitForVblank(scrn);
-		i830_free_memory(scrn, old_front);
-	}
-#endif
-	return TRUE;
-}
-
-static const xf86CrtcConfigFuncsRec i830_xf86crtc_config_funcs = {
-	i830_xf86crtc_resize
-};
 
 /*
  * DRM mode setting Linux only at this point... later on we could
@@ -776,14 +704,14 @@ static Bool I830DrmModeInit(ScrnInfoPtr scrn)
 {
 	intel_screen_private *intel = intel_get_screen_private(scrn);
 
+	i830_init_bufmgr(scrn);
+
 	if (drmmode_pre_init(scrn, intel->drmSubFD, intel->cpp) == FALSE) {
 		xf86DrvMsg(scrn->scrnIndex, X_ERROR,
 			   "Kernel modesetting setup failed\n");
 		PreInitCleanup(scrn);
 		return FALSE;
 	}
-
-	i830_init_bufmgr(scrn);
 
 	return TRUE;
 }
@@ -1059,17 +987,17 @@ static Bool i830_try_memory_allocation(ScrnInfoPtr scrn)
 		   "Attempting memory allocation with %stiled buffers.\n",
 		   tiled ? "" : "un");
 
-	if (!i830_allocate_2d_memory(scrn))
-		goto failed;
+	intel->front_buffer = i830_allocate_framebuffer(scrn);
+	if (!intel->front_buffer) {
+		xf86DrvMsg(scrn->scrnIndex, X_INFO,
+			   "%siled allocation failed.\n",
+			   tiled ? "T" : "Unt");
+		return FALSE;
+	}
 
 	xf86DrvMsg(scrn->scrnIndex, X_INFO, "%siled allocation successful.\n",
 		   tiled ? "T" : "Unt");
 	return TRUE;
-
-failed:
-	xf86DrvMsg(scrn->scrnIndex, X_INFO, "%siled allocation failed.\n",
-		   tiled ? "T" : "Unt");
-	return FALSE;
 }
 
 /*
@@ -1088,13 +1016,6 @@ static Bool i830_memory_init(ScrnInfoPtr scrn)
 	Bool tiled = FALSE;
 
 	tiled = i830_tiled_width(intel, &scrn->displayWidth, intel->cpp);
-	/* Set up our video memory allocator for the chosen videoRam */
-	if (!i830_allocator_init(scrn, scrn->videoRam * KB(1))) {
-		xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-			   "Couldn't initialize video memory allocator\n");
-		PreInitCleanup(scrn);
-		return FALSE;
-	}
 
 	xf86DrvMsg(scrn->scrnIndex,
 		   intel->pEnt->device->videoRam ? X_CONFIG : X_DEFAULT,
@@ -1173,7 +1094,9 @@ I830ScreenInit(int scrnIndex, ScreenPtr screen, int argc, char **argv)
 	ScrnInfoPtr scrn = xf86Screens[screen->myNum];
 	intel_screen_private *intel = intel_get_screen_private(scrn);
 	VisualPtr visual;
+#ifdef INTEL_XVMC
 	MessageType from;
+#endif
 	struct pci_device *const device = intel->PciInfo;
 	int fb_bar = IS_I9XX(intel) ? 2 : 0;
 
@@ -1192,35 +1115,18 @@ I830ScreenInit(int scrnIndex, ScreenPtr screen, int argc, char **argv)
 	 * actual memory allocation, so alignment and things will cause less than
 	 * VideoRam to be actually used.
 	 */
-	if (intel->pEnt->device->videoRam == 0) {
-		from = X_DEFAULT;
-		scrn->videoRam = intel->FbMapSize / KB(1);
-	} else {
-#if 0
-		from = X_CONFIG;
-		scrn->videoRam = intel->pEnt->device->videoRam;
-#else
-		/* Disable VideoRam configuration, at least for now.  Previously,
-		 * VideoRam was necessary to avoid overly low limits on allocated
-		 * memory, so users created larger, yet still small, fixed allocation
-		 * limits in their config files.  Now, the driver wants to allocate more,
-		 * and the old intention of the VideoRam lines that had been entered is
-		 * obsolete.
-		 */
-		from = X_DEFAULT;
-		scrn->videoRam = intel->FbMapSize / KB(1);
-
+	scrn->videoRam = intel->FbMapSize / KB(1);
+	if (intel->pEnt->device->videoRam != 0) {
 		if (scrn->videoRam != intel->pEnt->device->videoRam) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-				   "VideoRam configuration found, which is no longer "
-				   "recommended.\n");
+				   "VideoRam configuration found, which is no "
+				   "longer used.\n");
 			xf86DrvMsg(scrn->scrnIndex, X_INFO,
-				   "Continuing with default %dkB VideoRam instead of %d "
-				   "kB.\n",
+				   "Continuing with (ignored) %dkB VideoRam "
+				   "instead of %d kB.\n",
 				   scrn->videoRam,
 				   intel->pEnt->device->videoRam);
 		}
-#endif
 	}
 
 	scrn->videoRam = device->regions[fb_bar].size / 1024;
@@ -1276,6 +1182,11 @@ I830ScreenInit(int scrnIndex, ScreenPtr screen, int argc, char **argv)
 
 	i830_fixup_mtrrs(scrn);
 
+	intel_batch_init(scrn);
+
+	if (IS_I965G(intel))
+		gen4_render_state_init(scrn);
+
 	miClearVisualTypes();
 	if (!miSetVisualTypes(scrn->depth,
 			      miGetDefaultVisualMask(scrn->depth),
@@ -1288,12 +1199,6 @@ I830ScreenInit(int scrnIndex, ScreenPtr screen, int argc, char **argv)
 
 	if (scrn->virtualX > scrn->displayWidth)
 		scrn->displayWidth = scrn->virtualX;
-
-	/* If the front buffer is not a BO, we need to
-	 * set the initial framebuffer pixmap to point at
-	 * it
-	 */
-	scrn->fbOffset = intel->front_buffer->offset;
 
 	DPRINTF(PFX, "assert( if(!fbScreenInit(screen, ...) )\n");
 	if (!fbScreenInit(screen, NULL,
@@ -1460,13 +1365,6 @@ static void I830LeaveVT(int scrnIndex, int flags)
 
 	xf86_hide_cursors(scrn);
 
-	intel_sync(scrn);
-
-	intel_batch_teardown(scrn);
-
-	if (IS_I965G(intel))
-		gen4_render_state_cleanup(scrn);
-
 	ret = drmDropMaster(intel->drmSubFD);
 	if (ret)
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
@@ -1486,32 +1384,15 @@ static Bool I830EnterVT(int scrnIndex, int flags)
 
 	ret = drmSetMaster(intel->drmSubFD);
 	if (ret) {
-		if (errno == EINVAL) {
-			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-				   "drmSetMaster failed: 2.6.29 or newer kernel required for "
-				   "multi-server DRI\n");
-		} else {
-			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-				   "drmSetMaster failed: %s\n",
-				   strerror(errno));
-		}
+		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+			   "drmSetMaster failed: %s\n",
+			   strerror(errno));
 	}
 
-	if (!i830_bind_all_memory(scrn))
-		return FALSE;
-
-	i830_describe_allocations(scrn, 1, "");
-
-	intel_batch_init(scrn);
-
-	if (IS_I965G(intel))
-		gen4_render_state_init(scrn);
+	i830_set_gem_max_sizes(scrn);
 
 	if (!xf86SetDesiredModes(scrn))
 		return FALSE;
-
-	/* Mark all state as being clobbered. */
-	intel->last_3d = LAST_3D_OTHER;
 
 	return TRUE;
 }
@@ -1540,13 +1421,19 @@ static Bool I830CloseScreen(int scrnIndex, ScreenPtr screen)
 	if (intel->front_buffer) {
 		i830_set_pixmap_bo(screen->GetScreenPixmap(screen), NULL);
 		drmmode_closefb(scrn);
-		i830_free_memory(scrn, intel->front_buffer);
+		drm_intel_bo_unreference(intel->front_buffer);
 		intel->front_buffer = NULL;
 	}
 
+	intel_batch_teardown(scrn);
+
+	if (IS_I965G(intel))
+		gen4_render_state_cleanup(scrn);
+
 	xf86_cursors_fini(screen);
 
-	i830_allocator_fini(scrn);
+	/* Free most of the allocations */
+	i830_reset_allocations(scrn);
 
 	i965_free_video(scrn);
 

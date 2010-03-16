@@ -47,6 +47,7 @@
 #include <stdlib.h>
 
 #include "uxa-priv.h"
+#include "../src/common.h"
 
 #include "mipict.h"
 
@@ -189,7 +190,8 @@ static Bool uxa_realize_glyph_caches(ScreenPtr pScreen, unsigned int format)
 
 	pPixmap = (*pScreen->CreatePixmap) (pScreen,
 					    CACHE_PICTURE_WIDTH,
-					    height, depth, 0);
+					    height, depth,
+					    INTEL_CREATE_PIXMAP_TILING_X);
 	if (!pPixmap)
 		return FALSE;
 
@@ -741,7 +743,6 @@ uxa_glyphs(CARD8 op,
 	   INT16 xSrc,
 	   INT16 ySrc, int nlist, GlyphListPtr list, GlyphPtr * glyphs)
 {
-	PicturePtr pPicture;
 	PixmapPtr pMaskPixmap = 0;
 	PicturePtr pMask;
 	ScreenPtr pScreen = pDst->pDrawable->pScreen;
@@ -835,7 +836,6 @@ uxa_glyphs(CARD8 op,
 		n = list->len;
 		while (n--) {
 			glyph = *glyphs++;
-			pPicture = GlyphPicture(glyph)[pScreen->myNum];
 
 			if (glyph->info.width > 0 && glyph->info.height > 0 &&
 			    uxa_buffer_glyph(pScreen, &buffer, glyph, x,

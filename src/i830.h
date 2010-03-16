@@ -65,8 +65,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "sarea.h"
 #define _XF86DRI_SERVER_
 #include "dri.h"
+#include "dri2.h"
 #include "GL/glxint.h"
-#include "i830_dri.h"
 #include "intel_bufmgr.h"
 #include "i915_drm.h"
 
@@ -179,21 +179,6 @@ typedef struct _I830OutputRec I830OutputRec, *I830OutputPtr;
 /** Record of a linear allocation in the aperture. */
 typedef struct _i830_memory i830_memory;
 struct _i830_memory {
-	/** Offset of the allocation in card VM */
-	unsigned long offset;
-	/** End of the allocation in card VM */
-	unsigned long end;
-	/**
-	 * Requested size of the allocation: doesn't count padding.
-	 *
-	 * Any bound memory will cover offset to (offset + size).
-	 */
-	unsigned long size;
-
-	uint32_t tiling_mode;
-	/** Pitch value in bytes for tiled surfaces */
-	unsigned int pitch;
-
 	/** Description of the allocation, for logging */
 	char *name;
 
@@ -204,7 +189,7 @@ struct _i830_memory {
 	i830_memory *prev;
 	/** @} */
 
-	dri_bo *bo;
+	drm_intel_bo *bo;
 	uint32_t gem_name;
 };
 
@@ -248,17 +233,7 @@ typedef struct intel_screen_private {
 	long FbMapSize;
 	long GTTMapSize;
 
-	/**
-	 * Linked list of video memory allocations.  The head and tail are
-	 * dummy entries that bound the allocation area.
-	 */
-	i830_memory *memory_list;
-	/** Linked list of buffer object memory allocations */
-	i830_memory *bo_list;
-
-	i830_memory *front_buffer;
-	/* One big buffer for all cursors for kernels that support this */
-	i830_memory *cursor_mem_argb[2];
+	drm_intel_bo *front_buffer;
 
 	dri_bufmgr *bufmgr;
 
@@ -286,6 +261,8 @@ typedef struct intel_screen_private {
 #endif
 
 	CreateScreenResourcesProcPtr CreateScreenResources;
+
+	Bool shadow_present;
 
 	Bool need_mi_flush;
 
@@ -372,6 +349,8 @@ typedef struct intel_screen_private {
 	int drmSubFD;
 	char *deviceName;
 
+	Bool use_pageflipping;
+
 	/* Broken-out options. */
 	OptionInfoPtr Options;
 
@@ -393,6 +372,11 @@ enum {
 	DEBUG_FLUSH_WAIT = 0x4,
 };
 
+extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
+extern int drmmode_get_pipe_from_crtc_id(drm_intel_bufmgr *bufmgr, xf86CrtcPtr crtc);
+extern int drmmode_output_dpms_status(xf86OutputPtr output);
+extern Bool drmmode_do_pageflip(ScreenPtr screen, dri_bo *new_front,
+				dri_bo *old_front, void *data);
 
 static inline intel_screen_private *
 intel_get_screen_private(ScrnInfoPtr scrn)
@@ -424,6 +408,10 @@ extern xf86CrtcPtr i830_pipe_to_crtc(ScrnInfoPtr scrn, int pipe);
 
 Bool I830DRI2ScreenInit(ScreenPtr pScreen);
 void I830DRI2CloseScreen(ScreenPtr pScreen);
+void I830DRI2FrameEventHandler(unsigned int frame, unsigned int tv_sec,
+			       unsigned int tv_usec, void *user_data);
+void I830DRI2FlipEventHandler(unsigned int frame, unsigned int tv_sec,
+			      unsigned int tv_usec, void *user_data);
 
 extern Bool drmmode_pre_init(ScrnInfoPtr scrn, int fd, int cpp);
 extern void drmmode_closefb(ScrnInfoPtr scrn);
@@ -431,45 +419,25 @@ extern int drmmode_get_pipe_from_crtc_id(drm_intel_bufmgr * bufmgr,
 					 xf86CrtcPtr crtc);
 extern int drmmode_output_dpms_status(xf86OutputPtr output);
 extern int drmmode_crtc_id(xf86CrtcPtr crtc);
-void drmmode_crtc_set_cursor_bo(xf86CrtcPtr crtc, dri_bo * cursor);
 
 extern Bool i830_crtc_on(xf86CrtcPtr crtc);
 extern int i830_crtc_to_pipe(xf86CrtcPtr crtc);
 extern Bool I830AccelInit(ScreenPtr pScreen);
 
-Bool i830_allocator_init(ScrnInfoPtr scrn, unsigned long size);
-void i830_allocator_fini(ScrnInfoPtr scrn);
-i830_memory *i830_allocate_memory(ScrnInfoPtr scrn, const char *name,
-				  unsigned long size, unsigned long pitch,
-				  int flags, uint32_t tile_format);
-void i830_describe_allocations(ScrnInfoPtr scrn, int verbosity,
-			       const char *prefix);
 void i830_reset_allocations(ScrnInfoPtr scrn);
-void i830_free_3d_memory(ScrnInfoPtr scrn);
-void i830_free_memory(ScrnInfoPtr scrn, i830_memory * mem);
-Bool i830_allocate_2d_memory(ScrnInfoPtr scrn);
-Bool i830_allocate_3d_memory(ScrnInfoPtr scrn);
 void i830_init_bufmgr(ScrnInfoPtr scrn);
-#ifdef INTEL_XVMC
-Bool i830_allocate_xvmc_buffer(ScrnInfoPtr scrn, const char *name,
-			       i830_memory ** buffer, unsigned long size,
-			       int flags);
-void i830_free_xvmc_buffer(ScrnInfoPtr scrn, i830_memory * buffer);
-#endif
 
 Bool i830_tiled_width(intel_screen_private *intel, int *width, int cpp);
 
 int i830_pad_drawable_width(int width, int cpp);
 
 /* i830_memory.c */
-Bool i830_bind_all_memory(ScrnInfoPtr scrn);
 unsigned long i830_get_fence_size(intel_screen_private *intel, unsigned long size);
 unsigned long i830_get_fence_pitch(intel_screen_private *intel, unsigned long pitch,
 				   uint32_t tiling_mode);
-void i830_set_max_gtt_map_size(ScrnInfoPtr scrn);
-void i830_set_max_tiling_size(ScrnInfoPtr scrn);
+void i830_set_gem_max_sizes(ScrnInfoPtr scrn);
 
-i830_memory *i830_allocate_framebuffer(ScrnInfoPtr scrn);
+drm_intel_bo *i830_allocate_framebuffer(ScrnInfoPtr scrn);
 
 /* i830_render.c */
 Bool i830_check_composite(int op, PicturePtr sourcec, PicturePtr mask,
@@ -599,17 +567,6 @@ extern const int I830CopyROP[16];
 #define NEED_PHYSICAL_ADDR		0x00000001
 #define ALLOW_SHARING			0x00000010
 #define DISABLE_REUSE			0x00000020
-
-/**
- * Hints to CreatePixmap to tell the driver how the pixmap is going to be
- * used.
- *
- * Compare to CREATE_PIXMAP_USAGE_* in the server.
- */
-enum {
-	INTEL_CREATE_PIXMAP_TILING_X = 0x10000000,
-	INTEL_CREATE_PIXMAP_TILING_Y,
-};
 
 void i830_debug_flush(ScrnInfoPtr scrn);
 

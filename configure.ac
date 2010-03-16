@@ -22,7 +22,7 @@
 
 AC_PREREQ(2.57)
 AC_INIT([xf86-video-intel],
-        2.10.0,
+        2.10.902,
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         xf86-video-intel)
 
@@ -82,7 +82,6 @@ AC_ARG_ENABLE(kms-only, AC_HELP_STRING([--enable-kms-only],
               [KMS_ONLY=no])
 
 # Checks for extensions
-XORG_DRIVER_CHECK_EXT(XINERAMA, xineramaproto)
 XORG_DRIVER_CHECK_EXT(RANDR, randrproto)
 XORG_DRIVER_CHECK_EXT(RENDER, renderproto)
 XORG_DRIVER_CHECK_EXT(XF86DRI, xextproto x11)
@@ -159,8 +158,6 @@ DRIVER_NAME=intel
 AC_SUBST([DRIVER_NAME])
 AC_SUBST([moduledir])
 
-XORG_CHECK_LINUXDOC
-
 AC_OUTPUT([
 	Makefile
 	uxa/Makefile
@@ -169,8 +166,6 @@ AC_OUTPUT([
 	src/xvmc/shader/Makefile
 	src/xvmc/shader/mc/Makefile
 	src/xvmc/shader/vld/Makefile
-	src/bios_reader/Makefile
-	src/reg_dumper/Makefile
 	man/Makefile
 	src/render_program/Makefile
 ])

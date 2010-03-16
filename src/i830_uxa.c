@@ -156,7 +156,7 @@ i830_uxa_pixmap_compute_size(PixmapPtr pixmap,
 		 */
 		size = *stride * ALIGN(h, 2);
 	} else {
-		int aligned_h = h;
+		int aligned_h;
 		if (*tiling == I915_TILING_X)
 			aligned_h = ALIGN(h, 8);
 		else
@@ -189,11 +189,16 @@ i830_uxa_prepare_solid(PixmapPtr pixmap, int alu, Pixel planemask, Pixel fg)
 {
 	ScrnInfoPtr scrn = xf86Screens[pixmap->drawable.pScreen->myNum];
 	intel_screen_private *intel = intel_get_screen_private(scrn);
-	unsigned long pitch;
 	drm_intel_bo *bo_table[] = {
 		NULL,		/* batch_bo */
 		i830_get_pixmap_bo(pixmap),
 	};
+
+	if (IS_GEN6(intel)) {
+		intel_debug_fallback(scrn,
+				     "Sandybridge BLT engine not supported\n");
+		return FALSE;
+	}
 
 	if (!UXA_PM_IS_SOLID(&pixmap->drawable, planemask)) {
 		intel_debug_fallback(scrn, "planemask is not solid\n");
@@ -212,8 +217,6 @@ i830_uxa_prepare_solid(PixmapPtr pixmap, int alu, Pixel planemask, Pixel fg)
 
 	if (!intel_check_pitch_2d(pixmap))
 		return FALSE;
-
-	pitch = i830_pixmap_pitch(pixmap);
 
 	if (!i830_pixmap_pitch_is_aligned(pixmap)) {
 		intel_debug_fallback(scrn, "pixmap pitch not aligned");
@@ -298,6 +301,12 @@ i830_uxa_prepare_copy(PixmapPtr source, PixmapPtr dest, int xdir,
 		i830_get_pixmap_bo(source),
 		i830_get_pixmap_bo(dest),
 	};
+
+	if (IS_GEN6(intel)) {
+		intel_debug_fallback(scrn,
+				     "Sandybridge BLT engine not supported\n");
+		return FALSE;
+	}
 
 	if (!UXA_PM_IS_SOLID(&source->drawable, planemask)) {
 		intel_debug_fallback(scrn, "planemask is not solid");
@@ -575,8 +584,7 @@ static Bool i830_uxa_prepare_access(PixmapPtr pixmap, uxa_access_t access)
 	    (access == UXA_ACCESS_RW || priv->batch_write_domain))
 		intel_batch_submit(scrn);
 
-	/* No VT sema or GEM?  No GTT mapping. */
-	if (!scrn->vtSema || bo->size > intel->max_gtt_map_size) {
+	if (bo->size > intel->max_gtt_map_size) {
 		ret = dri_bo_map(bo, access == UXA_ACCESS_RW);
 		if (ret != 0) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
@@ -604,22 +612,19 @@ static Bool i830_uxa_prepare_access(PixmapPtr pixmap, uxa_access_t access)
 static void i830_uxa_finish_access(PixmapPtr pixmap)
 {
 	dri_bo *bo = i830_get_pixmap_bo(pixmap);
+	ScreenPtr screen = pixmap->drawable.pScreen;
+	ScrnInfoPtr scrn = xf86Screens[screen->myNum];
+	intel_screen_private *intel = intel_get_screen_private(scrn);
 
-	if (bo) {
-		ScreenPtr screen = pixmap->drawable.pScreen;
-		ScrnInfoPtr scrn = xf86Screens[screen->myNum];
-		intel_screen_private *intel = intel_get_screen_private(scrn);
+	if (bo == intel->front_buffer)
+		intel->need_flush = TRUE;
 
-		if (bo == intel->front_buffer->bo)
-			intel->need_flush = TRUE;
+	if (bo->size > intel->max_gtt_map_size)
+		dri_bo_unmap(bo);
+	else
+		drm_intel_gem_bo_unmap_gtt(bo);
 
-		if (!scrn->vtSema || bo->size > intel->max_gtt_map_size)
-			dri_bo_unmap(bo);
-		else
-			drm_intel_gem_bo_unmap_gtt(bo);
-
-		pixmap->devPrivate.ptr = NULL;
-	}
+	pixmap->devPrivate.ptr = NULL;
 }
 
 static Bool
@@ -786,7 +791,7 @@ void i830_uxa_block_handler(ScreenPtr screen)
 	intel_screen_private *intel = intel_get_screen_private(scrn);
 
 	if (intel->need_flush) {
-		dri_bo_wait_rendering(intel->front_buffer->bo);
+		dri_bo_wait_rendering(intel->front_buffer);
 		intel->need_flush = FALSE;
 	}
 }
@@ -895,7 +900,7 @@ void i830_uxa_create_screen_resources(ScreenPtr screen)
 {
 	ScrnInfoPtr scrn = xf86Screens[screen->myNum];
 	intel_screen_private *intel = intel_get_screen_private(scrn);
-	dri_bo *bo = intel->front_buffer->bo;
+	dri_bo *bo = intel->front_buffer;
 
 	if (bo != NULL) {
 		PixmapPtr pixmap = screen->GetScreenPixmap(screen);

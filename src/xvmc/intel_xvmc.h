@@ -41,7 +41,6 @@
 #include <stdint.h>
 
 #include <xf86drm.h>
-#include "i830_common.h"
 #include "i830_hwmc.h"
 #include <X11/X.h>
 #include <X11/Xlibint.h>
@@ -59,6 +58,8 @@
 #include "intel_batchbuffer.h"
 
 extern int DEBUG;
+
+#define GTT_PAGE_SIZE 4*1024
 
 #define XVMC_ERR(s, arg...)					\
     do {							\
@@ -132,7 +133,6 @@ typedef struct _intel_xvmc_driver {
 	int fd;			/* drm file handler */
 
 	dri_bufmgr *bufmgr;
-	unsigned int kernel_exec_fencing:1;
 
 	struct {
 		unsigned int init_offset;
@@ -151,7 +151,6 @@ typedef struct _intel_xvmc_driver {
 		unsigned int irq_emitted;
 	} alloc;
 	intel_xvmc_drm_map_t batchbuffer;
-	unsigned int last_render;
 
 	sigset_t sa_mask;
 	pthread_mutex_t ctxmutex;

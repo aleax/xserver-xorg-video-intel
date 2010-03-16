@@ -80,16 +80,21 @@ static void uxa_composite_fallback_pict_desc(PicturePtr pict, char *string,
 	snprintf(size, 20, "%dx%d%s", pict->pDrawable->width,
 		 pict->pDrawable->height, pict->repeat ? " R" : "");
 
-	snprintf(string, n, "%p:%c fmt %s (%s)", pict->pDrawable, loc, format,
-		 size);
+	snprintf(string, n, "%p:%c fmt %s (%s)%s",
+		 pict->pDrawable, loc, format, size,
+		 pict->alphaMap ? " with alpha map" :"");
 }
 
 static void
-uxa_print_composite_fallback(CARD8 op,
+uxa_print_composite_fallback(const char *func, CARD8 op,
 			     PicturePtr pSrc, PicturePtr pMask, PicturePtr pDst)
 {
+	uxa_screen_t *uxa_screen = uxa_get_screen(pDst->pDrawable->pScreen);
 	char sop[20];
 	char srcdesc[40], maskdesc[40], dstdesc[40];
+
+	if (! uxa_screen->fallback_debug)
+		return;
 
 	switch (op) {
 	case PictOpSrc:
@@ -107,11 +112,14 @@ uxa_print_composite_fallback(CARD8 op,
 	uxa_composite_fallback_pict_desc(pMask, maskdesc, 40);
 	uxa_composite_fallback_pict_desc(pDst, dstdesc, 40);
 
-	ErrorF("Composite fallback: op %s, \n"
-	       "                    src  %s, \n"
-	       "                    mask %s, \n"
-	       "                    dst  %s, \n",
-	       sop, srcdesc, maskdesc, dstdesc);
+	ErrorF("Composite fallback at %s:\n"
+	       "  op   %s, \n"
+	       "  src  %s, \n"
+	       "  mask %s, \n"
+	       "  dst  %s, \n"
+	       "  screen %s\n",
+	       func, sop, srcdesc, maskdesc, dstdesc,
+	       uxa_screen->swappedOut ? "swapped out" : "normal");
 }
 
 Bool uxa_op_reads_destination(CARD8 op)
@@ -138,17 +146,20 @@ uxa_get_pixel_from_rgba(CARD32 * pixel,
 	int rbits, bbits, gbits, abits;
 	int rshift, bshift, gshift, ashift;
 
-	*pixel = 0;
-
-	if (!PICT_FORMAT_COLOR(format))
-		return FALSE;
-
 	rbits = PICT_FORMAT_R(format);
 	gbits = PICT_FORMAT_G(format);
 	bbits = PICT_FORMAT_B(format);
 	abits = PICT_FORMAT_A(format);
 	if (abits == 0)
 	    abits = PICT_FORMAT_BPP(format) - (rbits+gbits+bbits);
+
+	if (PICT_FORMAT_TYPE(format) == PICT_TYPE_A) {
+		*pixel = alpha >> (16 - abits);
+		return TRUE;
+	}
+
+	if (!PICT_FORMAT_COLOR(format))
+		return FALSE;
 
 	if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ARGB) {
 		bshift = 0;
@@ -162,6 +173,7 @@ uxa_get_pixel_from_rgba(CARD32 * pixel,
 		ashift = bshift + bbits;
 	}
 
+	*pixel = 0;
 	*pixel |= (blue >> (16 - bbits)) << bshift;
 	*pixel |= (red >> (16 - rbits)) << rshift;
 	*pixel |= (green >> (16 - gbits)) << gshift;
@@ -179,43 +191,53 @@ uxa_get_rgba_from_pixel(CARD32 pixel,
 	int rbits, bbits, gbits, abits;
 	int rshift, bshift, gshift, ashift;
 
-	if (!PICT_FORMAT_COLOR(format))
-		return FALSE;
-
 	rbits = PICT_FORMAT_R(format);
 	gbits = PICT_FORMAT_G(format);
 	bbits = PICT_FORMAT_B(format);
 	abits = PICT_FORMAT_A(format);
 
-	if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ARGB) {
+	if (PICT_FORMAT_TYPE(format) == PICT_TYPE_A) {
+		rshift = gshift = bshift = ashift = 0;
+        } else if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ARGB) {
 		bshift = 0;
 		gshift = bbits;
 		rshift = gshift + gbits;
 		ashift = rshift + rbits;
-	} else {		/* PICT_TYPE_ABGR */
+        } else if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ABGR) {
 		rshift = 0;
 		gshift = rbits;
 		bshift = gshift + gbits;
 		ashift = bshift + bbits;
+	} else {
+		return FALSE;
 	}
 
-	*red = ((pixel >> rshift) & ((1 << rbits) - 1)) << (16 - rbits);
-	while (rbits < 16) {
-		*red |= *red >> rbits;
-		rbits <<= 1;
-	}
+	if (rbits) {
+		*red = ((pixel >> rshift) & ((1 << rbits) - 1)) << (16 - rbits);
+		while (rbits < 16) {
+			*red |= *red >> rbits;
+			rbits <<= 1;
+		}
+	} else
+		*red = 0;
 
-	*green = ((pixel >> gshift) & ((1 << gbits) - 1)) << (16 - gbits);
-	while (gbits < 16) {
-		*green |= *green >> gbits;
-		gbits <<= 1;
-	}
+	if (gbits) {
+		*green = ((pixel >> gshift) & ((1 << gbits) - 1)) << (16 - gbits);
+		while (gbits < 16) {
+			*green |= *green >> gbits;
+			gbits <<= 1;
+		}
+	} else
+		*green = 0;
 
-	*blue = ((pixel >> bshift) & ((1 << bbits) - 1)) << (16 - bbits);
-	while (bbits < 16) {
-		*blue |= *blue >> bbits;
-		bbits <<= 1;
-	}
+	if (bbits) {
+		*blue = ((pixel >> bshift) & ((1 << bbits) - 1)) << (16 - bbits);
+		while (bbits < 16) {
+			*blue |= *blue >> bbits;
+			bbits <<= 1;
+		}
+	} else
+		*blue = 0;
 
 	if (abits) {
 		*alpha =
@@ -230,7 +252,7 @@ uxa_get_rgba_from_pixel(CARD32 pixel,
 	return TRUE;
 }
 
-int
+Bool
 uxa_get_color_for_pixmap (PixmapPtr	 pixmap,
 			  CARD32	 src_format,
 			  CARD32	 dst_format,
@@ -242,13 +264,13 @@ uxa_get_color_for_pixmap (PixmapPtr	 pixmap,
 
 	if (!uxa_get_rgba_from_pixel(*pixel, &red, &green, &blue, &alpha,
 				     src_format))
-		return 0;
+		return FALSE;
 
 	if (!uxa_get_pixel_from_rgba(pixel, red, green, blue, alpha,
 				     dst_format))
-		return 0;
+		return FALSE;
 
-	return 1;
+	return TRUE;
 }
 
 static int
@@ -263,16 +285,19 @@ uxa_try_driver_solid_fill(PicturePtr pSrc,
 	BoxPtr pbox;
 	int nbox;
 	int dst_off_x, dst_off_y;
-	PixmapPtr pSrcPix, pDstPix;
+	PixmapPtr pSrcPix = NULL, pDstPix;
 	CARD32 pixel;
 
 	pDstPix = uxa_get_drawable_pixmap(pDst->pDrawable);
-	pSrcPix = uxa_get_drawable_pixmap(pSrc->pDrawable);
 
 	xDst += pDst->pDrawable->x;
 	yDst += pDst->pDrawable->y;
-	xSrc += pSrc->pDrawable->x;
-	ySrc += pSrc->pDrawable->y;
+
+	if (pSrc->pDrawable) {
+		pSrcPix = uxa_get_drawable_pixmap(pSrc->pDrawable);
+		xSrc += pSrc->pDrawable->x;
+		ySrc += pSrc->pDrawable->y;
+	}
 
 	if (!miComputeCompositeRegion(&region, pSrc, NULL, pDst,
 				      xSrc, ySrc, 0, 0, xDst, yDst,
@@ -289,9 +314,21 @@ uxa_try_driver_solid_fill(PicturePtr pSrc,
 		return 0;
 	}
 
-	if (! uxa_get_color_for_pixmap (pSrcPix, pSrc->format, pDst->format, &pixel)) {
-		REGION_UNINIT(pDst->pDrawable->pScreen, &region);
-		return -1;
+	if (pSrcPix) {
+		if (! uxa_get_color_for_pixmap (pSrcPix, pSrc->format, pDst->format, &pixel)) {
+			REGION_UNINIT(pDst->pDrawable->pScreen, &region);
+			return -1;
+		}
+	} else {
+		SourcePict *source = pSrc->pSourcePict;
+		PictSolidFill *solid = &source->solidFill;
+
+		if (source == NULL || source->type != SourcePictTypeSolidFill) {
+			REGION_UNINIT(pDst->pDrawable->pScreen, &region);
+			return -1;
+		}
+
+		pixel = solid->color;
 	}
 
 	if (!(*uxa_screen->info->prepare_solid)
@@ -458,7 +495,7 @@ uxa_create_solid(ScreenPtr screen, uint32_t color)
 {
 	PixmapPtr pixmap;
 	PicturePtr picture;
-	uint32_t repeat = RepeatNormal;
+	XID repeat = RepeatNormal;
 	int error = 0;
 
 	pixmap = (*screen->CreatePixmap)(screen, 1, 1, 32,
@@ -704,6 +741,9 @@ uxa_composite_rects(CARD8 op,
 	ValidatePicture(pDst);
 
 	if (uxa_try_driver_composite_rects(op, pSrc, pDst, nrect, rects) != 1) {
+		uxa_print_composite_fallback("uxa_composite_rects",
+					     op, pSrc, NULL, pDst);
+
 		n = nrect;
 		r = rects;
 		while (n--) {
@@ -820,8 +860,10 @@ uxa_try_driver_composite(CARD8 op,
 	nbox = REGION_NUM_RECTS(&region);
 	pbox = REGION_RECTS(&region);
 
-	xMask = xMask + mask_off_x - xDst - dst_off_x;
-	yMask = yMask + mask_off_y - yDst - dst_off_y;
+	if (pMask) {
+		xMask = xMask + mask_off_x - xDst - dst_off_x;
+		yMask = yMask + mask_off_y - yDst - dst_off_y;
+	}
 
 	xSrc = xSrc + src_off_x - xDst - dst_off_x;
 	ySrc = ySrc + src_off_y - yDst - dst_off_y;
@@ -938,6 +980,32 @@ uxa_try_magic_two_pass_composite_helper(CARD8 op,
 	return 1;
 }
 
+static int
+compatible_formats (CARD8 op, PicturePtr dst, PicturePtr src)
+{
+	if (op == PictOpSrc) {
+		if (src->format == dst->format)
+			return 1;
+
+		if (src->format == PICT_a8r8g8b8 && dst->format == PICT_x8r8g8b8)
+			return 1;
+
+		if (src->format == PICT_a8b8g8r8 && dst->format == PICT_x8b8g8r8)
+			return 1;
+	} else if (op == PictOpOver) {
+		if (src->alphaMap || dst->alphaMap)
+			return 0;
+
+		if (src->format != dst->format)
+			return 0;
+
+		if (src->format == PICT_x8r8g8b8 || src->format == PICT_x8b8g8r8)
+			return 1;
+	}
+
+	return 0;
+}
+
 void
 uxa_composite(CARD8 op,
 	      PicturePtr pSrc,
@@ -957,38 +1025,37 @@ uxa_composite(CARD8 op,
 	if (uxa_screen->swappedOut)
 		goto fallback;
 
-	if (pSrc->pDrawable == NULL || (pMask && pMask->pDrawable == NULL))
-		goto composite;
-
 	/* Remove repeat in source if useless */
-	if (pSrc->repeat && (pSrc->pDrawable->width > 1 || pSrc->pDrawable->height > 1 ) &&
-	    !pSrc->transform && xSrc >= 0 &&
-	    (xSrc + width) <= pSrc->pDrawable->width && ySrc >= 0 &&
-	    (ySrc + height) <= pSrc->pDrawable->height)
+	if (pSrc->pDrawable && pSrc->repeat && !pSrc->transform &&
+	    (pSrc->pDrawable->width > 1 || pSrc->pDrawable->height > 1) &&
+	    xSrc >= 0 && (xSrc + width) <= pSrc->pDrawable->width &&
+	    ySrc >= 0 && (ySrc + height) <= pSrc->pDrawable->height)
 		pSrc->repeat = 0;
 
 	if (!pMask) {
-		if ((op == PictOpSrc &&
-		     ((pSrc->format == pDst->format) ||
-		      (pSrc->format == PICT_a8r8g8b8
-		       && pDst->format == PICT_x8r8g8b8)
-		      || (pSrc->format == PICT_a8b8g8r8
-			  && pDst->format == PICT_x8b8g8r8)))
-		    || (op == PictOpOver && !pSrc->alphaMap && !pDst->alphaMap
-			&& pSrc->format == pDst->format
-			&& (pSrc->format == PICT_x8r8g8b8
-			    || pSrc->format == PICT_x8b8g8r8))) {
+		if (pSrc->pDrawable == NULL) {
+			if (pSrc->pSourcePict) {
+				SourcePict *source = pSrc->pSourcePict;
+				if (source->type == SourcePictTypeSolidFill) {
+					ret = uxa_try_driver_solid_fill(pSrc, pDst,
+									xSrc, ySrc,
+									xDst, yDst,
+									width, height);
+					if (ret == 1)
+						goto done;
+				}
+			}
+		} else if (compatible_formats (op, pDst, pSrc)) {
 			if (pSrc->pDrawable->width == 1 &&
 			    pSrc->pDrawable->height == 1 &&
 			    pSrc->repeat) {
-				ret =
-				    uxa_try_driver_solid_fill(pSrc, pDst, xSrc,
-							      ySrc, xDst, yDst,
-							      width, height);
+				ret = uxa_try_driver_solid_fill(pSrc, pDst,
+								xSrc, ySrc,
+								xDst, yDst,
+								width, height);
 				if (ret == 1)
 					goto done;
-			} else if (pSrc->pDrawable != NULL &&
-				   !pSrc->repeat && !pSrc->transform) {
+			} else if (!pSrc->repeat && !pSrc->transform) {
 				xDst += pDst->pDrawable->x;
 				yDst += pDst->pDrawable->y;
 				xSrc += pSrc->pDrawable->x;
@@ -1008,8 +1075,7 @@ uxa_composite(CARD8 op,
 				REGION_UNINIT(pDst->pDrawable->pScreen,
 					      &region);
 				goto done;
-			} else if (pSrc->pDrawable != NULL &&
-				   pSrc->pDrawable->type == DRAWABLE_PIXMAP &&
+			} else if (pSrc->pDrawable->type == DRAWABLE_PIXMAP &&
 				   !pSrc->transform &&
 				   pSrc->repeatType == RepeatNormal) {
 				DDXPointRec patOrg;
@@ -1019,16 +1085,12 @@ uxa_composite(CARD8 op,
 				 */
 				if (uxa_screen->info->prepare_composite
 				    && !pSrc->alphaMap && !pDst->alphaMap) {
-					ret =
-					    uxa_try_driver_composite(op, pSrc,
-								     pMask,
-								     pDst, xSrc,
-								     ySrc,
-								     xMask,
-								     yMask,
-								     xDst, yDst,
-								     width,
-								     height);
+					ret = uxa_try_driver_composite(op, pSrc,
+								       pMask, pDst,
+								       xSrc, ySrc,
+								       xMask, yMask,
+								       xDst, yDst,
+								       width, height);
 					if (ret == 1)
 						goto done;
 				}
@@ -1052,12 +1114,11 @@ uxa_composite(CARD8 op,
 				patOrg.x = xDst - xSrc;
 				patOrg.y = yDst - ySrc;
 
-				ret =
-				    uxa_fill_region_tiled(pDst->pDrawable,
-							  &region,
-							  (PixmapPtr) pSrc->
-							  pDrawable, &patOrg,
-							  FB_ALLONES, GXcopy);
+				ret = uxa_fill_region_tiled(pDst->pDrawable,
+							    &region,
+							    (PixmapPtr) pSrc->
+							    pDrawable, &patOrg,
+							    FB_ALLONES, GXcopy);
 
 				REGION_UNINIT(pDst->pDrawable->pScreen,
 					      &region);
@@ -1068,7 +1129,6 @@ uxa_composite(CARD8 op,
 		}
 	}
 
-composite:
 	/* Remove repeat in mask if useless */
 	if (pMask && pMask->repeat && !pMask->transform && pMask->pDrawable &&
 	    (pMask->pDrawable->width > 1 || pMask->pDrawable->height > 1) &&
@@ -1115,8 +1175,8 @@ composite:
 	}
 
 fallback:
-	if (uxa_screen->fallback_debug)
-		uxa_print_composite_fallback(op, pSrc, pMask, pDst);
+	uxa_print_composite_fallback("uxa_composite",
+				     op, pSrc, pMask, pDst);
 
 	uxa_check_composite(op, pSrc, pMask, pDst, xSrc, ySrc,
 			    xMask, yMask, xDst, yDst, width, height);
