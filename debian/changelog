@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.10.0-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.10.902-1) UNRELEASED; urgency=low
 
   [ Julien Cristau ]
   * Rename the build directory to not include DEB_BUILD_GNU_TYPE for no
@@ -6,7 +6,7 @@ xserver-xorg-video-intel (2:2.10.0-1) UNRELEASED; urgency=low
   * Remove myself from Uploaders
 
   [ Brice Goglin ]
-  * New upstream release, closes: #567829.
+  * New upstream release candidate, closes: #567829.
     + User mode-setting is not supported anymore.
   * Bump xutils-dev build dependency for new util-macros.
   * Bump libdrm build dependency to 2.4.18-3 for latest i915 drm headers.
