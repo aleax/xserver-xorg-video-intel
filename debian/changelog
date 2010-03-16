@@ -9,7 +9,7 @@ xserver-xorg-video-intel (2:2.10.0-1) UNRELEASED; urgency=low
   * New upstream release, closes: #567829.
     + User mode-setting is not supported anymore.
   * Bump xutils-dev build dependency for new util-macros.
-  * Bump libdrm build dependency to 2.4.16.
+  * Bump libdrm build dependency to 2.4.18-3 for latest i915 drm headers.
   * Build depend on libx11-xcb-dev, libxcb-aux0-dev and libxcb-dri2-0-dev
     for XVMC.
 
