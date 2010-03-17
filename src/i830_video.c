@@ -360,7 +360,6 @@ I830SetOneLineModeRatio(ScrnInfoPtr pScrn);
 static Bool
 drmmode_has_overlay(ScrnInfoPtr pScrn)
 {
-#ifdef DRM_MODE_OVERLAY_LANDED
     I830Ptr p830 = I830PTR(pScrn);
     struct drm_i915_getparam gp;
     int has_overlay = 0;
@@ -371,15 +370,11 @@ drmmode_has_overlay(ScrnInfoPtr pScrn)
 			      &gp, sizeof(gp));
 
     return has_overlay ? TRUE : FALSE;
-#else
-    return FALSE;
-#endif
 }
 
 static void
 drmmode_overlay_update_attrs(ScrnInfoPtr pScrn)
 {
-#ifdef DRM_MODE_OVERLAY_LANDED
     I830Ptr p830 = I830PTR(pScrn);
     I830PortPrivPtr pPriv = GET_PORT_PRIVATE(pScrn);
     struct drm_intel_overlay_attrs attrs;
@@ -402,13 +397,11 @@ drmmode_overlay_update_attrs(ScrnInfoPtr pScrn)
 
     if (ret != 0)
 	    OVERLAY_DEBUG("overlay attrs ioctl failed: %i\n", ret);
-#endif
 }
 
 static void
 drmmode_overlay_off(ScrnInfoPtr pScrn)
 {
-#ifdef DRM_MODE_OVERLAY_LANDED
     I830Ptr p830 = I830PTR(pScrn);
     struct drm_intel_overlay_put_image request;
     int ret;
@@ -420,7 +413,6 @@ drmmode_overlay_off(ScrnInfoPtr pScrn)
 
     if (ret != 0)
 	    OVERLAY_DEBUG("overlay switch-off ioctl failed: %i\n", ret);
-#endif
 }
 
 static Bool
@@ -429,7 +421,6 @@ drmmode_overlay_put_image(ScrnInfoPtr pScrn, xf86CrtcPtr crtc,
 		   int dstPitch, int x1, int y1, int x2, int y2, BoxPtr dstBox,
 		   short src_w, short src_h, short drw_w, short drw_h)
 {
-#ifdef DRM_MODE_OVERLAY_LANDED
     I830Ptr p830 = I830PTR(pScrn);
     I830PortPrivPtr pPriv = GET_PORT_PRIVATE(pScrn);
     struct drm_intel_overlay_put_image request;
@@ -495,9 +486,6 @@ drmmode_overlay_put_image(ScrnInfoPtr pScrn, xf86CrtcPtr crtc,
 	return FALSE;
     } else
 	return TRUE;
-#else
-    return FALSE;
-#endif
 }
 
 static void
