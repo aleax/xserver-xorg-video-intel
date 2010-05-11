@@ -1,10 +1,10 @@
-xserver-xorg-video-intel (2:2.3.2-2+lenny7) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.3.2-2+lenny7) stable; urgency=low
 
   * Backport from upstream git support for SDVO LVDS outputs, as found on asus
     eeetop (ET1602).  Thanks to Eric Estievenart for the patch
     (closes: #520018).
 
- -- Julien Cristau <jcristau@debian.org>  Tue, 11 May 2010 15:49:32 +0200
+ -- Julien Cristau <jcristau@debian.org>  Tue, 11 May 2010 17:12:13 +0200
 
 xserver-xorg-video-intel (2:2.3.2-2+lenny6) unstable; urgency=high
 
