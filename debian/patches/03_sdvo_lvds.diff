@@ -1,0 +1,38 @@
+Subject: Bug#520018: xserver-xorg-video-intel: X won't start on 945GME (asus et1602)
+From: Eric Estievenart <eric.estievenart@free.fr>
+
+The inter xorg driver does not work on asus eeetop (ET1602).
+It reports the following error:
+(EE) intel(0): SDVO: No active TMDS outputs (0x4000)
+
+Such a bug has been fixed in more recent xorg releases
+(see for example:
+[1] https://bugs.freedesktop.org/show_bug.cgi?id=11645
+[2] http://cgit.freedesktop.org/xorg/driver/xf86-video-intel/commit/?id=59b0fbb9be880d489374b141f818948a2721a2ef
+The patch described in [2] can be backported with a slight modification to
+xserver-xorg-video-intel 2:2.3.2-2+lenny6,
+(by replacing dev_priv->controlled_output with dev_priv->active_outputs),
+and indeed the X server will start on such hardware.
+
+I think that this patch can be added safely into debian/patches.
+Sincerely.
+
+Index: xserver-xorg-video-intel/src/i830_sdvo.c
+===================================================================
+--- xserver-xorg-video-intel.orig/src/i830_sdvo.c
++++ xserver-xorg-video-intel/src/i830_sdvo.c
+@@ -1320,6 +1320,14 @@
+ 	dev_priv->active_outputs = SDVO_OUTPUT_RGB1;
+         output->subpixel_order = SubPixelHorizontalRGB;
+ 	name_prefix="VGA";
++    } else if (dev_priv->caps.output_flags & SDVO_OUTPUT_LVDS0) {
++       dev_priv->active_outputs = SDVO_OUTPUT_LVDS0;
++        output->subpixel_order = SubPixelHorizontalRGB;
++       name_prefix="LVDS";
++    } else if (dev_priv->caps.output_flags & SDVO_OUTPUT_LVDS1) {
++       dev_priv->active_outputs = SDVO_OUTPUT_LVDS1;
++        output->subpixel_order = SubPixelHorizontalRGB;
++       name_prefix="LVDS";
+     }
+     else
+     {
