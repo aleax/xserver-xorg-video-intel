@@ -20,8 +20,10 @@ xserver-xorg-video-intel (2:2.11.0-1ubuntu1) maverick; urgency=low
   [ Robert Hooker ]
   * Add 102-disable-page-flipping-v2.patch: Disables page flipping support which
     is causing frequent hangs, but leaves the events.
+  * Add 103-mbp-backlight-support.patch: Enables xrandr backlight control for
+    macbook's using the mbp_backlight module. (LP: #417770)
 
- -- Robert Hooker <sarvatt@ubuntu.com>  Sat, 29 May 2010 20:41:01 -0400
+ -- Robert Hooker <sarvatt@ubuntu.com>  Sat, 29 May 2010 20:49:31 -0400
 
 xserver-xorg-video-intel (2:2.11.0-1) experimental; urgency=low
 
