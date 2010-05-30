@@ -1,5 +1,6 @@
 xserver-xorg-video-intel (2:2.11.0-1ubuntu1) maverick; urgency=low
 
+  [ Christopher James Halse Rogers ]
   * Merge from Debian experimental.  Remaining Ubuntu changes:
     - debian/apport-gpu-error-intel.py, debian/xserver-xorg-video-intel.udev,
       debian/xserver-xorg-video-intel:
@@ -16,7 +17,11 @@ xserver-xorg-video-intel (2:2.11.0-1ubuntu1) maverick; urgency=low
       At best it's redundant (as the kernel defaults to KMS), at worst it breaks
       the ability to disable KMS.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 27 May 2010 17:14:14 +1000
+  [ Robert Hooker ]
+  * Add 102-disable-page-flipping-v2.patch: Disables page flipping support which
+    is causing frequent hangs, but leaves the events.
+
+ -- Robert Hooker <sarvatt@ubuntu.com>  Sat, 29 May 2010 20:41:01 -0400
 
 xserver-xorg-video-intel (2:2.11.0-1) experimental; urgency=low
 
