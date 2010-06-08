@@ -11,7 +11,7 @@ xserver-xorg-video-intel (2:2.11.0-1ubuntu1) maverick; urgency=low
       Plymouth.
     - control: Add Recommends on intel-gpu-tools to xserver-xorg-video-intel 
       package for use by GPU hang scripts.
-    - xserver-xorg-video-intel.preinst.in, bxserver-xorg-video-intel.postinst.in,
+    - xserver-xorg-video-intel.preinst.in, xserver-xorg-video-intel.postinst.in,
       rules:
       Don't install /etc/modprobe.d/i915-kms.conf, and remove it on upgrades.
       At best it's redundant (as the kernel defaults to KMS), at worst it breaks
