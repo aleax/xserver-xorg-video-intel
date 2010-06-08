@@ -1,3 +1,13 @@
+Description: Disable kernel pageflipping support.
+ There seem to be a number of issues with pageflipping, particularly on
+ Gen 3 hardware.
+ .
+ Some of the required kernel patches which haven't made it upstream are in
+ this thread: 
+ http://lists.freedesktop.org/archives/intel-gfx/2010-April/006464.html
+Bug: https://bugs.freedesktop.org/show_bug.cgi?id=28079
+Bug: https://bugs.freedesktop.org/show_bug.cgi?id=27883
+
 diff --git a/src/drmmode_display.c b/src/drmmode_display.c
 index 358baf4..30c9213 100644
 --- a/src/drmmode_display.c
