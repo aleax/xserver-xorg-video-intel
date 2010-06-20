@@ -87,36 +87,43 @@ PKG_CHECK_MODULES(PCIACCESS, [pciaccess >= 0.10])
 
 sdkdir=`$PKG_CONFIG --variable=sdkdir xorg-server`
 
-save_CFLAGS="$CFLAGS"
-CFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
-CPPFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
-AC_MSG_CHECKING([whether to include DRI support])
-if test x$DRI != xno; then
-        AC_CHECK_FILE([${sdkdir}/dri.h],
-                      [have_dri_h="yes"], [have_dri_h="no"])
-        AC_CHECK_FILE([${sdkdir}/sarea.h],
-                      [have_sarea_h="yes"], [have_sarea_h="no"])
-        AC_CHECK_FILE([${sdkdir}/dristruct.h],
-                      [have_dristruct_h="yes"], [have_dristruct_h="no"])
+if test "x$DRI" != xno; then
+  save_CFLAGS="$CFLAGS"
+  CFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
+  CPPFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
+  AC_CHECK_FILE([${sdkdir}/dri.h],
+		[have_dri_h="yes"], [have_dri_h="no"])
+  AC_CHECK_FILE([${sdkdir}/sarea.h],
+		[have_sarea_h="yes"], [have_sarea_h="no"])
+  AC_CHECK_FILE([${sdkdir}/dristruct.h],
+		[have_dristruct_h="yes"], [have_dristruct_h="no"])
+  AC_MSG_CHECKING([whether to include DRI support])
+  if test x$DRI = xauto; then
+	  if test "$have_dri_h" = yes -a \
+		  "$have_sarea_h" = yes -a \
+		  "$have_dristruct_h" = yes; then
+		  DRI="yes"
+	  else
+		  DRI="no"
+	  fi
+  else
+      if test x$DRI = xyes; then
+	  if test "$have_dri_h" != yes -o \
+		  "$have_sarea_h" != yes -o \
+		  "$have_dristruct_h" != yes; then
+		  AC_MSG_ERROR([no])
+	  fi
+      fi
+  fi
+  AC_MSG_RESULT([$DRI])
+  CFLAGS="$save_CFLAGS $DEBUGFLAGS"
 fi
-AC_MSG_CHECKING([whether to include DRI support])
-if test x$DRI = xauto; then
-        if test "$have_dri_h" = yes -a \
-                "$have_sarea_h" = yes -a \
-                "$have_dristruct_h" = yes; then
-                DRI="yes"
-        else
-                DRI="no"
-        fi
-fi
-AC_MSG_RESULT([$DRI])
-CFLAGS="$save_CFLAGS $DEBUGFLAGS"
 
 AM_CONDITIONAL(DRI, test x$DRI = xyes)
 if test "$DRI" = yes; then
         PKG_CHECK_MODULES(DRI, [xf86driproto glproto])
-        AC_DEFINE(XF86DRI,1,[Enable DRI driver support])
-        AC_DEFINE(XF86DRI_DEVEL,1,[Enable developmental DRI driver support])
+        AC_DEFINE(BUILD_DRI,1,[Enable DRI driver support])
+        AC_DEFINE(BUILD_DRI_DEVEL,1,[Enable developmental DRI driver support])
 fi
 
 if test "$XVMC" = yes; then
@@ -153,6 +160,12 @@ AC_OUTPUT([
 	src/legacy/Makefile
 	src/legacy/i810/Makefile
 	src/legacy/i810/xvmc/Makefile
+	src/legacy/ums/Makefile
+	src/legacy/ums/ch7017/Makefile
+	src/legacy/ums/ch7xxx/Makefile
+	src/legacy/ums/ivch/Makefile
+	src/legacy/ums/sil164/Makefile
+	src/legacy/ums/tfp410/Makefile
 	man/Makefile
 	src/render_program/Makefile
 ])

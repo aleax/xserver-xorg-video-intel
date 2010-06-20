@@ -77,8 +77,9 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "legacy/legacy.h"
 
 #include <sys/ioctl.h>
-#include "i915_drm.h"
 #include <xf86drmMode.h>
+#include <i915_drm.h>
+#include <dri.h> /* DRICreatePCIBusID() */
 
 #define BIT(x) (1 << (x))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
@@ -275,6 +276,7 @@ static void PreInitCleanup(ScrnInfoPtr scrn)
 {
 	I830FreeRec(scrn);
 }
+
 
 /*
  * DRM mode setting Linux only at this point... later on we could
