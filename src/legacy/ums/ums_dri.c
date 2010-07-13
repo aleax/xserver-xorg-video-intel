@@ -738,6 +738,24 @@ ums_I830SetParam(ScrnInfoPtr pScrn, int param, int value)
    return TRUE;
 }
 
+Bool
+ums_I830DRISetHWS(ScrnInfoPtr pScrn)
+{
+   I830Ptr pI830 = I830PTR(pScrn);
+   drmI830HWS hws;
+
+   hws.addr = pI830->hw_status->offset;
+
+   if (drmCommandWrite(pI830->drmSubFD, DRM_I830_HWS_PAGE_ADDR,
+		       &hws, sizeof(drmI830HWS))) {
+      xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		 "hw status page initialization Failed\n");
+      return FALSE;
+   }
+   return TRUE;
+}
+
+
 static void
 ums_I830InitTextureHeap(ScrnInfoPtr pScrn)
 {
