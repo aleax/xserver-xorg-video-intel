@@ -67,6 +67,13 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ums.h"
 
+#if (DRIINFO_MAJOR_VERSION > 5 || \
+     (DRIINFO_MAJOR_VERSION == 5 && DRIINFO_MINOR_VERSION >= 4))
+#define DRI_DRIVER_FRAMEBUFFER_MAP 1
+#else
+#define DRI_DRIVER_FRAMEBUFFER_MAP 0
+#endif
+
 extern void GlxSetVisualConfigs(int nconfigs,
 				__GLXvisualConfig * configs,
 				void **configprivs);
