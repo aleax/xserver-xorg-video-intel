@@ -17,6 +17,9 @@ xserver-xorg-video-intel (2:2.12.0-1ubuntu1) UNRELEASED; urgency=low
       the ability to disable KMS.     
     + 103-mbp-backlight-support.patch: Enables xrandr backlight control for
       macbook's using the mbp_backlight module.
+  * Drop 102-disable-page-flipping-v2.patch: all the upstream bugs mentioned
+    in the patch are closed.  If we get a spate of freeze bugs, start looking
+    here.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 19 Jul 2010 16:36:28 +0200
 
