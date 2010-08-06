@@ -21,7 +21,7 @@ Index: xserver-xorg-video-intel/src/i830_driver.c
 ===================================================================
 --- xserver-xorg-video-intel.orig/src/i830_driver.c
 +++ xserver-xorg-video-intel/src/i830_driver.c
-@@ -317,6 +317,7 @@
+@@ -319,6 +319,7 @@
  #ifdef INTEL_XVMC
     OPTION_XVMC,
  #endif
@@ -29,7 +29,7 @@ Index: xserver-xorg-video-intel/src/i830_driver.c
  } I830Opts;
  
  static OptionInfoRec I830Options[] = {
-@@ -345,6 +346,7 @@
+@@ -347,6 +348,7 @@
  #ifdef INTEL_XVMC
     {OPTION_XVMC,	"XvMC",		OPTV_BOOLEAN,	{0},	TRUE},
  #endif
@@ -37,7 +37,7 @@ Index: xserver-xorg-video-intel/src/i830_driver.c
     {-1,			NULL,		OPTV_NONE,	{0},	FALSE}
  };
  /* *INDENT-ON* */
-@@ -1583,6 +1585,17 @@
+@@ -1594,6 +1596,17 @@
  		  pI830->useEXA ? "EXA" : "XAA");
     }
  
