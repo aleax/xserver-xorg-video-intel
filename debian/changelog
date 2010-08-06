@@ -1,3 +1,10 @@
+xserver-xorg-video-intel (2:2.3.2-2+lenny8) UNRELEASED; urgency=low
+
+  * Enable low power render writes on GEN3 hardware.  Backported from a kernel
+    fix by Dave Airlie.
+
+ -- Julien Cristau <jcristau@debian.org>  Thu, 05 Aug 2010 17:46:43 -0400
+
 xserver-xorg-video-intel (2:2.3.2-2+lenny7) stable; urgency=low
 
   * Backport from upstream git support for SDVO LVDS outputs, as found on asus
