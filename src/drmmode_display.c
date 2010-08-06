@@ -38,7 +38,7 @@
 
 #include "xorgVersion.h"
 
-#include "i830.h"
+#include "intel.h"
 #include "intel_bufmgr.h"
 #include "xf86drmMode.h"
 #include "X11/Xatom.h"
@@ -57,6 +57,7 @@ typedef struct {
 
 typedef struct {
     drmmode_ptr drmmode;
+    drmModeModeInfo kmode;
     drmModeCrtcPtr mode_crtc;
     dri_bo *cursor;
     dri_bo *rotate_bo;
@@ -102,6 +103,7 @@ static char *backlight_interfaces[] = {
     "asus-laptop",
     "eeepc",
     "thinkpad_screen",
+    "mbp_backlight",
     "acpi_video1",
     "acpi_video0",
     "fujitsu-laptop",
@@ -302,52 +304,20 @@ drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
 }
 
 static Bool
-drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
-		       Rotation rotation, int x, int y)
+drmmode_apply(xf86CrtcPtr crtc)
 {
 	ScrnInfoPtr scrn = crtc->scrn;
-	intel_screen_private *intel = intel_get_screen_private(scrn);
-	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	int saved_x, saved_y;
-	Rotation saved_rotation;
-	DisplayModeRec saved_mode;
+	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
 	uint32_t *output_ids;
 	int output_count = 0;
-	int ret = TRUE;
-	int i;
-	int fb_id;
-	drmModeModeInfo kmode;
-	unsigned int pitch = scrn->displayWidth * intel->cpp;
-
-	if (drmmode->fb_id == 0) {
-		ret = drmModeAddFB(drmmode->fd,
-				   scrn->virtualX, scrn->virtualY,
-				   scrn->depth, scrn->bitsPerPixel,
-				   pitch, intel->front_buffer->handle,
-				   &drmmode->fb_id);
-		if (ret < 0) {
-			ErrorF("failed to add fb\n");
-			return FALSE;
-		}
-	}
-
-	saved_mode = crtc->mode;
-	saved_x = crtc->x;
-	saved_y = crtc->y;
-	saved_rotation = crtc->rotation;
-
-	crtc->mode = *mode;
-	crtc->x = x;
-	crtc->y = y;
-	crtc->rotation = rotation;
+	int fb_id, x, y;
+	int i, ret;
 
 	output_ids = calloc(sizeof(uint32_t), xf86_config->num_output);
-	if (!output_ids) {
-		ret = FALSE;
-		goto done;
-	}
+	if (!output_ids)
+		return FALSE;
 
 	for (i = 0; i < xf86_config->num_output; i++) {
 		xf86OutputPtr output = xf86_config->output[i];
@@ -375,9 +345,9 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 			       crtc->gamma_blue, crtc->gamma_size);
 #endif
 
-	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
 
-
+	x = crtc->x;
+	y = crtc->y;
 	fb_id = drmmode->fb_id;
 	if (drmmode_crtc->rotate_fb_id) {
 		fb_id = drmmode_crtc->rotate_fb_id;
@@ -385,11 +355,13 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		y = 0;
 	}
 	ret = drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
-			     fb_id, x, y, output_ids, output_count, &kmode);
-	if (ret)
+			     fb_id, x, y, output_ids, output_count,
+			     &drmmode_crtc->kmode);
+	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-			   "failed to set mode: %s", strerror(-ret));
-	else
+			   "failed to set mode: %s\n", strerror(-ret));
+		ret = FALSE;
+	} else
 		ret = TRUE;
 
 	/* Turn on any outputs on this crtc that may have been disabled */
@@ -402,11 +374,56 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		drmmode_output_dpms(output, DPMSModeOn);
 	}
 
-	i830_set_gem_max_sizes(scrn);
+	intel_set_gem_max_sizes(scrn);
 
 	if (scrn->pScreen)
 		xf86_reload_cursors(scrn->pScreen);
+
+	return ret;
+
 done:
+	free(output_ids);
+	return FALSE;
+}
+
+static Bool
+drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
+		       Rotation rotation, int x, int y)
+{
+	ScrnInfoPtr scrn = crtc->scrn;
+	intel_screen_private *intel = intel_get_screen_private(scrn);
+	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+	int saved_x, saved_y;
+	Rotation saved_rotation;
+	DisplayModeRec saved_mode;
+	int ret = TRUE;
+	unsigned int pitch = scrn->displayWidth * intel->cpp;
+
+	if (drmmode->fb_id == 0) {
+		ret = drmModeAddFB(drmmode->fd,
+				   scrn->virtualX, scrn->virtualY,
+				   scrn->depth, scrn->bitsPerPixel,
+				   pitch, intel->front_buffer->handle,
+				   &drmmode->fb_id);
+		if (ret < 0) {
+			ErrorF("failed to add fb\n");
+			return FALSE;
+		}
+	}
+
+	saved_mode = crtc->mode;
+	saved_x = crtc->x;
+	saved_y = crtc->y;
+	saved_rotation = crtc->rotation;
+
+	crtc->mode = *mode;
+	crtc->x = x;
+	crtc->y = y;
+	crtc->rotation = rotation;
+
+	drmmode_ConvertToKMode(crtc->scrn, &drmmode_crtc->kmode, mode);
+	ret = drmmode_apply(crtc);
 	if (!ret) {
 		crtc->x = saved_x;
 		crtc->y = saved_y;
@@ -441,7 +458,7 @@ drmmode_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
 	ret = dri_bo_subdata(drmmode_crtc->cursor, 0, 64*64*4, image);
 	if (ret)
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-			   "failed to set cursor: %s", strerror(-ret));
+			   "failed to set cursor: %s\n", strerror(-ret));
 
 	return;
 }
@@ -476,10 +493,10 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	unsigned long rotate_pitch;
 	int ret;
 
-	drmmode_crtc->rotate_bo = i830_allocate_framebuffer(scrn,
-							    width, height,
-							    drmmode->cpp,
-							    &rotate_pitch);
+	drmmode_crtc->rotate_bo = intel_allocate_framebuffer(scrn,
+							     width, height,
+							     drmmode->cpp,
+							     &rotate_pitch);
 
 	if (!drmmode_crtc->rotate_bo) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
@@ -536,7 +553,7 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 		return NULL;
 	}
 
-	i830_set_pixmap_bo(rotate_pixmap, drmmode_crtc->rotate_bo);
+	intel_set_pixmap_bo(rotate_pixmap, drmmode_crtc->rotate_bo);
 
 	intel->shadow_present = TRUE;
 
@@ -552,7 +569,7 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 
 	if (rotate_pixmap) {
-		i830_set_pixmap_bo(rotate_pixmap, NULL);
+		intel_set_pixmap_bo(rotate_pixmap, NULL);
 		FreeScratchPixmapHeader(rotate_pixmap);
 	}
 
@@ -626,7 +643,7 @@ drmmode_crtc_init(ScrnInfoPtr scrn, drmmode_ptr drmmode, int num)
 						  GTT_PAGE_SIZE);
 	drm_intel_bo_disable_reuse(drmmode_crtc->cursor);
 
-	return;
+	intel->crtc = crtc;
 }
 
 static xf86OutputStatus
@@ -1177,6 +1194,7 @@ static const char *output_names[] = { "None",
 static void
 drmmode_output_init(ScrnInfoPtr scrn, drmmode_ptr drmmode, int num)
 {
+	intel_screen_private *intel = intel_get_screen_private(scrn);
 	xf86OutputPtr output;
 	drmModeConnectorPtr koutput;
 	drmModeEncoderPtr kencoder;
@@ -1239,7 +1257,8 @@ drmmode_output_init(ScrnInfoPtr scrn, drmmode_ptr drmmode, int num)
 
 	output->possible_crtcs = kencoder->possible_crtcs;
 	output->possible_clones = kencoder->possible_clones;
-	return;
+
+	intel->output = output;
 }
 
 static Bool
@@ -1267,10 +1286,10 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 	old_fb_id = drmmode->fb_id;
 	old_front = intel->front_buffer;
 
-	intel->front_buffer = i830_allocate_framebuffer(scrn,
-							width, height,
-							intel->cpp,
-							&pitch);
+	intel->front_buffer = intel_allocate_framebuffer(scrn,
+							 width, height,
+							 intel->cpp,
+							 &pitch);
 	if (!intel->front_buffer)
 		goto fail;
 
@@ -1287,7 +1306,8 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 
 	pixmap = screen->GetScreenPixmap(screen);
 	screen->ModifyPixmapHeader(pixmap, width, height, -1, -1, pitch, NULL);
-	i830_set_pixmap_bo(pixmap, intel->front_buffer);
+	intel_set_pixmap_bo(pixmap, intel->front_buffer);
+	intel_get_pixmap_private(pixmap)->busy = 1;
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
 		xf86CrtcPtr crtc = xf86_config->crtc[i];
@@ -1295,8 +1315,8 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 		if (!crtc->enabled)
 			continue;
 
-		drmmode_set_mode_major(crtc, &crtc->mode,
-				       crtc->rotation, crtc->x, crtc->y);
+		if (!drmmode_apply(crtc))
+			goto fail;
 	}
 
 	if (old_fb_id)
@@ -1467,6 +1487,20 @@ Bool drmmode_pre_init(ScrnInfoPtr scrn, int fd, int cpp)
 	}
 
 	return TRUE;
+}
+
+void
+drmmode_close_screen(intel_screen_private *intel)
+{
+	if (intel->crtc) {
+		xf86CrtcDestroy(intel->crtc);
+		intel->crtc = NULL;
+	}
+
+	if (intel->output) {
+		xf86OutputDestroy(intel->output);
+		intel->output = NULL;
+	}
 }
 
 int

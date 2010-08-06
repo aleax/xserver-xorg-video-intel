@@ -50,8 +50,6 @@ PKG_CHECK_MODULES(GEN4ASM, [intel-gen4asm >= 1.0], [gen4asm=yes], [gen4asm=no])
 AM_CONDITIONAL(HAVE_GEN4ASM, test x$gen4asm = xyes)
 
 AC_HEADER_STDC
-AC_CHECK_HEADERS(sys/mman.h)
-AC_CHECK_FUNCS(mprotect)
 
 AH_TOP([#include "xorg-server.h"])
 
@@ -65,11 +63,6 @@ AC_ARG_ENABLE(dri, AC_HELP_STRING([--disable-dri],
                                   [Disable DRI support [[default=auto]]]),
               [DRI="$enableval"],
               [DRI=auto])
-
-AC_ARG_ENABLE(video-debug, AC_HELP_STRING([--enable-video-debug],
-                                  [Enable video debugging support [[default=no]]]),
-              [VIDEO_DEBUG="$enableval"],
-              [VIDEO_DEBUG=no])
 
 AC_ARG_ENABLE(xvmc, AC_HELP_STRING([--disable-xvmc],
                                   [Disable XvMC support [[default=yes]]]),
@@ -91,48 +84,49 @@ XORG_DRIVER_CHECK_EXT(DPMSExtension, xextproto)
 PKG_CHECK_MODULES(XORG, [xorg-server >= 1.6 xproto fontsproto $REQUIRED_MODULES])
 PKG_CHECK_MODULES(DRM, [libdrm >= 2.4.21])
 PKG_CHECK_MODULES(PCIACCESS, [pciaccess >= 0.10])
-PKG_CHECK_MODULES(XEXT, [xextproto >= 7.0.99.1],
-                  HAVE_XEXTPROTO_71="yes"; AC_DEFINE(HAVE_XEXTPROTO_71, 1, [xextproto 7.1 available]),
-                  HAVE_XEXTPROTO_71="no")
-AM_CONDITIONAL(HAVE_XEXTPROTO_71, [ test "$HAVE_XEXTPROTO_71" = "yes" ])
 
 sdkdir=`$PKG_CONFIG --variable=sdkdir xorg-server`
 
-save_CFLAGS="$CFLAGS"
-CFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
-CPPFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
-AC_MSG_CHECKING([whether to include DRI support])
-if test x$DRI != xno; then
-        AC_CHECK_FILE([${sdkdir}/dri.h],
-                      [have_dri_h="yes"], [have_dri_h="no"])
-        AC_CHECK_FILE([${sdkdir}/sarea.h],
-                      [have_sarea_h="yes"], [have_sarea_h="no"])
-        AC_CHECK_FILE([${sdkdir}/dristruct.h],
-                      [have_dristruct_h="yes"], [have_dristruct_h="no"])
+if test "x$DRI" != xno; then
+  save_CFLAGS="$CFLAGS"
+  CFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
+  CPPFLAGS="$XORG_CFLAGS $DRI_CFLAGS $DRM_CFLAGS"
+  AC_CHECK_FILE([${sdkdir}/dri.h],
+		[have_dri_h="yes"], [have_dri_h="no"])
+  AC_CHECK_FILE([${sdkdir}/sarea.h],
+		[have_sarea_h="yes"], [have_sarea_h="no"])
+  AC_CHECK_FILE([${sdkdir}/dristruct.h],
+		[have_dristruct_h="yes"], [have_dristruct_h="no"])
+  AC_MSG_CHECKING([whether to include DRI support])
+  if test x$DRI = xauto; then
+	  if test "$have_dri_h" = yes -a \
+		  "$have_sarea_h" = yes -a \
+		  "$have_dristruct_h" = yes; then
+		  DRI="yes"
+	  else
+		  DRI="no"
+	  fi
+  else
+      if test x$DRI = xyes; then
+	  if test "$have_dri_h" != yes -o \
+		  "$have_sarea_h" != yes -o \
+		  "$have_dristruct_h" != yes; then
+		  AC_MSG_ERROR([no])
+	  fi
+      fi
+  fi
+  AC_MSG_RESULT([$DRI])
+  CFLAGS="$save_CFLAGS $DEBUGFLAGS"
 fi
-AC_MSG_CHECKING([whether to include DRI support])
-if test x$DRI = xauto; then
-        if test "$have_dri_h" = yes -a \
-                "$have_sarea_h" = yes -a \
-                "$have_dristruct_h" = yes; then
-                DRI="yes"
-        else
-                DRI="no"
-        fi
-fi
-AC_MSG_RESULT([$DRI])
-CFLAGS="$save_CFLAGS $DEBUGFLAGS"
+
+dnl This could be removed by open-coding DRICreatePCIBusID for
+dnl intel_kernel_mode_enabled
+PKG_CHECK_MODULES(DRI, [xf86driproto glproto])
 
 AM_CONDITIONAL(DRI, test x$DRI = xyes)
 if test "$DRI" = yes; then
-        PKG_CHECK_MODULES(DRI, [xf86driproto glproto])
-        AC_DEFINE(XF86DRI,1,[Enable DRI driver support])
-        AC_DEFINE(XF86DRI_DEVEL,1,[Enable developmental DRI driver support])
-fi
-
-AM_CONDITIONAL(VIDEO_DEBUG, test x$VIDEO_DEBUG = xyes)
-if test "$VIDEO_DEBUG" = yes; then
-	AC_DEFINE(VIDEO_DEBUG,1,[Enable debug support])
+        AC_DEFINE(BUILD_DRI,1,[Enable DRI driver support])
+        AC_DEFINE(BUILD_DRI_DEVEL,1,[Enable developmental DRI driver support])
 fi
 
 if test "$XVMC" = yes; then
@@ -166,6 +160,15 @@ AC_OUTPUT([
 	src/xvmc/shader/Makefile
 	src/xvmc/shader/mc/Makefile
 	src/xvmc/shader/vld/Makefile
+	src/legacy/Makefile
+	src/legacy/i810/Makefile
+	src/legacy/i810/xvmc/Makefile
+	src/legacy/ums/Makefile
+	src/legacy/ums/ch7017/Makefile
+	src/legacy/ums/ch7xxx/Makefile
+	src/legacy/ums/ivch/Makefile
+	src/legacy/ums/sil164/Makefile
+	src/legacy/ums/tfp410/Makefile
 	man/Makefile
 	src/render_program/Makefile
 ])
