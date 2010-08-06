@@ -32,146 +32,229 @@
 #include "i830.h"
 #include "i830_hwmc.h"
 
-struct intel_xvmc_driver *xvmc_driver;
+#include <X11/extensions/Xv.h>
+#include <X11/extensions/XvMC.h>
+#include <fourcc.h>
 
-/* set global current driver for xvmc */
-static Bool intel_xvmc_set_driver(struct intel_xvmc_driver *d)
+static int create_subpicture(ScrnInfoPtr scrn, XvMCSubpicturePtr subpicture,
+			     int *num_priv, CARD32 ** priv)
 {
-    if (xvmc_driver) {
-	ErrorF("XvMC driver already set!\n");
-	return FALSE;
-    } else
-	xvmc_driver = d;
-    return TRUE;
+	return Success;
 }
+
+static void destroy_subpicture(ScrnInfoPtr scrn, XvMCSubpicturePtr subpicture)
+{
+}
+
+static int create_surface(ScrnInfoPtr scrn, XvMCSurfacePtr surface,
+			  int *num_priv, CARD32 ** priv)
+{
+	return Success;
+}
+
+static void destroy_surface(ScrnInfoPtr scrn, XvMCSurfacePtr surface)
+{
+}
+
+static int create_context(ScrnInfoPtr scrn, XvMCContextPtr pContext,
+				    int *num_priv, CARD32 **priv)
+{
+	intel_screen_private *intel = intel_get_screen_private(scrn);
+	struct intel_xvmc_hw_context *contextRec;
+
+	*priv = calloc(1, sizeof(struct intel_xvmc_hw_context));
+	contextRec = (struct intel_xvmc_hw_context *) *priv;
+	if (!contextRec) {
+		*num_priv = 0;
+		return BadAlloc;
+	}
+
+	*num_priv = sizeof(struct intel_xvmc_hw_context) >> 2;
+
+	if (IS_I915(intel)) {
+		contextRec->type = XVMC_I915_MPEG2_MC;
+		contextRec->i915.use_phys_addr = 0;
+	} else {
+		if (IS_G4X(intel) || IS_IGDNG(intel))
+			contextRec->type = XVMC_I965_MPEG2_VLD;
+		else
+			contextRec->type = XVMC_I965_MPEG2_MC;
+		contextRec->i965.is_g4x = IS_G4X(intel);
+		contextRec->i965.is_965_q = IS_965_Q(intel);
+		contextRec->i965.is_igdng = IS_IGDNG(intel);
+	}
+
+	return Success;
+}
+
+static void destroy_context(ScrnInfoPtr scrn, XvMCContextPtr context)
+{
+}
+
+/* i915 hwmc support */
+static XF86MCSurfaceInfoRec i915_YV12_mpg2_surface = {
+	FOURCC_YV12,
+	XVMC_CHROMA_FORMAT_420,
+	0,
+	720,
+	576,
+	720,
+	576,
+	XVMC_MPEG_2,
+	/* XVMC_OVERLAID_SURFACE | XVMC_SUBPICTURE_INDEPENDENT_SCALING, */
+	0,
+	/* &yv12_subpicture_list */
+	NULL,
+};
+
+static XF86MCSurfaceInfoRec i915_YV12_mpg1_surface = {
+	FOURCC_YV12,
+	XVMC_CHROMA_FORMAT_420,
+	0,
+	720,
+	576,
+	720,
+	576,
+	XVMC_MPEG_1,
+	/* XVMC_OVERLAID_SURFACE | XVMC_SUBPICTURE_INDEPENDENT_SCALING, */
+	0,
+	NULL,
+};
+
+static XF86MCSurfaceInfoPtr surface_info_i915[2] = {
+	(XF86MCSurfaceInfoPtr) & i915_YV12_mpg2_surface,
+	(XF86MCSurfaceInfoPtr) & i915_YV12_mpg1_surface
+};
+
+/* i965 and later hwmc support */
+#ifndef XVMC_VLD
+#define XVMC_VLD  0x00020000
+#endif
+
+static XF86MCSurfaceInfoRec yv12_mpeg2_vld_surface = {
+	FOURCC_YV12,
+	XVMC_CHROMA_FORMAT_420,
+	0,
+	1936,
+	1096,
+	1920,
+	1080,
+	XVMC_MPEG_2 | XVMC_VLD,
+	XVMC_INTRA_UNSIGNED,
+	NULL
+};
+
+static XF86MCSurfaceInfoRec yv12_mpeg2_i965_surface = {
+	FOURCC_YV12,
+	XVMC_CHROMA_FORMAT_420,
+	0,
+	1936,
+	1096,
+	1920,
+	1080,
+	XVMC_MPEG_2 | XVMC_MOCOMP,
+	/* XVMC_OVERLAID_SURFACE | XVMC_SUBPICTURE_INDEPENDENT_SCALING, */
+	XVMC_INTRA_UNSIGNED,
+	/* &yv12_subpicture_list */
+	NULL
+};
+
+static XF86MCSurfaceInfoRec yv12_mpeg1_i965_surface = {
+	FOURCC_YV12,
+	XVMC_CHROMA_FORMAT_420,
+	0,
+	1920,
+	1080,
+	1920,
+	1080,
+	XVMC_MPEG_1 | XVMC_MOCOMP,
+	/*XVMC_OVERLAID_SURFACE | XVMC_SUBPICTURE_INDEPENDENT_SCALING |
+	   XVMC_INTRA_UNSIGNED, */
+	XVMC_INTRA_UNSIGNED,
+
+	/*&yv12_subpicture_list */
+	NULL
+};
+
+static XF86MCSurfaceInfoPtr surface_info_i965[] = {
+	&yv12_mpeg2_i965_surface,
+	&yv12_mpeg1_i965_surface
+};
+
+static XF86MCSurfaceInfoPtr surface_info_vld[] = {
+	&yv12_mpeg2_vld_surface,
+	&yv12_mpeg2_i965_surface,
+};
 
 /* check chip type and load xvmc driver */
-/* This must be first called! */
-Bool intel_xvmc_probe(ScrnInfoPtr pScrn)
+Bool intel_xvmc_adaptor_init(ScreenPtr pScreen)
 {
-    I830Ptr pI830 = I830PTR(pScrn);
-    Bool ret = FALSE;
+	ScrnInfoPtr scrn = xf86Screens[pScreen->myNum];
+	intel_screen_private *intel = intel_get_screen_private(scrn);
+	static XF86MCAdaptorRec *pAdapt;
+	char *name;
+	char buf[64];
 
-    if (!pI830->XvMCEnabled)
-	return FALSE;
+	if (!intel->XvMCEnabled)
+		return FALSE;
 
-    if (pI830->use_drm_mode &&
-	    (IS_I915G(pI830) || IS_I915GM(pI830)))
-	return FALSE;
+	/* Needs KMS support. */
+	if (IS_I915G(intel) || IS_I915GM(intel))
+		return FALSE;
 
-    if (IS_I9XX(pI830)) {
-	if (IS_I915(pI830))
-	    ret = intel_xvmc_set_driver(&i915_xvmc_driver);
-	else if (IS_G4X(pI830) || IS_IGDNG(pI830))
-	    ret = intel_xvmc_set_driver(&vld_xvmc_driver);
-	else
-	    ret = intel_xvmc_set_driver(&i965_xvmc_driver);
-    } else {
-	ErrorF("Your chipset doesn't support XvMC.\n");
-	return FALSE;
-    }
-    return TRUE;
-}
+	if (!IS_I9XX(intel)) {
+		ErrorF("Your chipset doesn't support XvMC.\n");
+		return FALSE;
+	}
 
-void intel_xvmc_finish(ScrnInfoPtr pScrn)
-{
-    if (!xvmc_driver)
-	return;
-    (*xvmc_driver->fini)(pScrn);
-}
+	pAdapt = calloc(1, sizeof(XF86MCAdaptorRec));
+	if (!pAdapt) {
+		ErrorF("Allocation error.\n");
+		return FALSE;
+	}
 
-Bool intel_xvmc_driver_init(ScreenPtr pScreen, XF86VideoAdaptorPtr xv_adaptor)
-{
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    I830Ptr pI830 = I830PTR(pScrn);
-    struct drm_i915_setparam sp;
-    int ret;
+	pAdapt->name = "Intel(R) Textured Video";
+	pAdapt->num_subpictures = 0;
+	pAdapt->subpictures = NULL;
+	pAdapt->CreateContext = create_context;
+	pAdapt->DestroyContext = destroy_context;
+	pAdapt->CreateSurface = create_surface;
+	pAdapt->DestroySurface = destroy_surface;
+	pAdapt->CreateSubpicture =  create_subpicture;
+	pAdapt->DestroySubpicture = destroy_subpicture;
 
-    if (!xvmc_driver) {
-	ErrorF("Failed to probe XvMC driver.\n");
-	return FALSE;
-    }
+	if (IS_I915(intel)) {
+		name = "i915_xvmc",
+		pAdapt->num_surfaces = ARRAY_SIZE(surface_info_i915);
+		pAdapt->surfaces = surface_info_i915;
+	} else if (IS_G4X(intel) || IS_IGDNG(intel)) {
+		name = "xvmc_vld",
+		pAdapt->num_surfaces = ARRAY_SIZE(surface_info_vld);
+		pAdapt->surfaces = surface_info_vld;
+	} else {
+		name = "i965_xvmc",
+		pAdapt->num_surfaces = ARRAY_SIZE(surface_info_i965);
+		pAdapt->surfaces = surface_info_i965;
+	}
 
-    if (!(*xvmc_driver->init)(pScrn, xv_adaptor)) {
-	ErrorF("XvMC driver initialize failed.\n");
-	return FALSE;
-    }
+	if (xf86XvMCScreenInit(pScreen, 1, &pAdapt)) {
+		xf86DrvMsg(scrn->scrnIndex, X_INFO,
+			   "[XvMC] %s driver initialized.\n",
+			   name);
+	} else {
+		intel->XvMCEnabled = FALSE;
+		xf86DrvMsg(scrn->scrnIndex, X_INFO,
+			   "[XvMC] Failed to initialize XvMC.\n");
+		return FALSE;
+	}
 
-    /* Currently XvMC uses batchbuffer */
-    sp.param = I915_SETPARAM_ALLOW_BATCHBUFFER;
-    sp.value = 1; 
-    ret = drmCommandWrite(pI830->drmSubFD, DRM_I915_SETPARAM,
-                          &sp, sizeof(sp));
-    if (ret == 0)
-        return TRUE;
-    
-    return FALSE;
-}
+	sprintf(buf, "pci:%04x:%02x:%02x.%d",
+		intel->PciInfo->domain,
+		intel->PciInfo->bus, intel->PciInfo->dev, intel->PciInfo->func);
 
-Bool intel_xvmc_screen_init(ScreenPtr pScreen)
-{
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    I830Ptr pI830 = I830PTR(pScrn);
-    char buf[64];
-
-    if (!xvmc_driver)
-	return FALSE;
-
-    if (xf86XvMCScreenInit(pScreen, 1, &xvmc_driver->adaptor)) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		"[XvMC] %s driver initialized.\n",
-		xvmc_driver->name);
-    } else {
-	intel_xvmc_finish(pScrn);
-	pI830->XvMCEnabled = FALSE;
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		"[XvMC] Failed to initialize XvMC.\n");
-	return FALSE;
-    }
-
-    sprintf(buf, "pci:%04x:%02x:%02x.%d",
-            pI830->PciInfo->domain,
-            pI830->PciInfo->bus,
-            pI830->PciInfo->dev,
-            pI830->PciInfo->func);
-
-    xf86XvMCRegisterDRInfo(pScreen, INTEL_XVMC_LIBNAME,
-                           buf,
-                           INTEL_XVMC_MAJOR, INTEL_XVMC_MINOR, INTEL_XVMC_PATCHLEVEL);
-    return TRUE;
-}
-
-Bool intel_xvmc_init_batch(ScrnInfoPtr pScrn)
-{
-    I830Ptr pI830 = I830PTR(pScrn);
-    int size = KB(64);
-
-    if (!i830_allocate_xvmc_buffer(pScrn, "[XvMC] batch buffer",
-                                   &(xvmc_driver->batch), size,
-                                   ALIGN_BOTH_ENDS))
-        return FALSE;
-
-    if (drmAddMap(pI830->drmSubFD,
-                  (drm_handle_t)(xvmc_driver->batch->offset+pI830->LinearAddr),
-                  xvmc_driver->batch->size, DRM_AGP, 0,
-                  &xvmc_driver->batch_handle) < 0) {
-        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                   "[drm] drmAddMap(batchbuffer_handle) failed!\n");
-        return FALSE;
-    }
-    return TRUE;
-}
-
-void intel_xvmc_fini_batch(ScrnInfoPtr pScrn)
-{
-    I830Ptr pI830 = I830PTR(pScrn);
-
-    if (xvmc_driver->batch_handle) {
-        drmRmMap(pI830->drmSubFD, xvmc_driver->batch_handle);
-        xvmc_driver->batch_handle = 0;
-    }
-    if (xvmc_driver->batch) {
-        i830_free_xvmc_buffer(pScrn, xvmc_driver->batch);
-        xvmc_driver->batch = NULL;
-    }
+	xf86XvMCRegisterDRInfo(pScreen, INTEL_XVMC_LIBNAME,
+			       buf,
+			       INTEL_XVMC_MAJOR, INTEL_XVMC_MINOR,
+			       INTEL_XVMC_PATCHLEVEL);
+	return TRUE;
 }
