@@ -30,10 +30,9 @@ UMS_DRI_SRCS = \
          ums_dri.h
 
 UMS_XVMC_SRCS = \
-	 ums_i830_hwmc.h \
-	 ums_i830_hwmc.c \
+         ums_hwmc.c \
+         ums_hwmc.h \
          ums_i915_hwmc.c \
-         ums_i915_hwmc.h \
          ums_i965_hwmc.c \
          ums_i965_hwmc.h
 
@@ -72,6 +71,7 @@ liblegacy_ums_la_SOURCES = \
          ums_video.h \
          ums_video.c \
 	 ums_xaa.c \
+	 ums_i810_reg.h \
          ums_i830_common.h \
 	 ums_i830_reg.h \
 	 ums_i830_3d.c \
