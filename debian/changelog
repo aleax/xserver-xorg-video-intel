@@ -1,10 +1,10 @@
-xserver-xorg-video-intel (2:2.12.0+legacy1-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.12.0+legacy1-1) unstable; urgency=low
 
   * Merge from people.freedesktop.org/~ickle/xf86-video-intel:legacy.
     This reintroduces UMS and EXA for legacy chips, while allowing us to get
     the fixes and new hw support from 2.12.
 
- -- Julien Cristau <jcristau@debian.org>  Tue, 24 Aug 2010 17:41:52 +0200
+ -- Julien Cristau <jcristau@debian.org>  Tue, 24 Aug 2010 21:33:56 +0200
 
 xserver-xorg-video-intel (2:2.12.0-1) experimental; urgency=low
 
