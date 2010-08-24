@@ -1,3 +1,27 @@
+commit a69c7e3817ee63afe31e6a1874e84ec03d944cd4
+Author: Julien Cristau <jcristau@debian.org>
+Date:   Tue Aug 24 20:36:40 2010 +0200
+
+    legacy/ums: fix distcheck
+    
+    Signed-off-by: Julien Cristau <jcristau@debian.org>
+
+commit 22e5830d3a60f25cbbab6976a8effaa2c843a804
+Author: Daniel Vetter <daniel.vetter@ffwll.ch>
+Date:   Wed Oct 14 18:09:08 2009 +0200
+
+    legacy/ums/Xv overlay: fix planar YUV copy for right rotated crtcs
+    
+    While copying and rotating the buffer, array access was out of bounds when
+    rotated to the right (RR_Rotate_270).  My buffer handling changes probably
+    made this bug much more likely to actually result in a SIGSEGV.
+    
+    I've checked the logs and the bug exists since rotation has been supported,
+    i.e.  this looks like a candidate for cherry-picking for all supported
+    releases.
+    
+    Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+
 commit 352016d2da69bfc998a642132ab722940899ad2e
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sat Jul 24 23:08:20 2010 +0100
