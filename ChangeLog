@@ -1,3 +1,296 @@
+commit 352016d2da69bfc998a642132ab722940899ad2e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Jul 24 23:08:20 2010 +0100
+
+    legacy/ums: Don't use uninitialised methods for synchronisation
+    
+    Fixes https://bugs.freedesktop.org/show_bug.cgi?id=29153
+
+commit e90446967b34013cf74bc9c6aa502261dddf1933
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 15 11:31:32 2010 +0100
+
+    legacy/ums: #include <drm.h>
+
+commit 7865828182d094b0e9b3706dc4a6ea17e3b09ba7
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Jul 13 17:50:59 2010 +0100
+
+    legacy/ums/dri: Enable framebuffer mapping for dri
+
+commit 381a69364cd74e66554454567efb8b71ceb50819
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Jul 13 08:57:13 2010 +0100
+
+    legacy/ums/i965: we do not handle SourcePictures
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cc6467a4fce031143a5be5500c25d8210bc4d29e
+Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
+Date:   Tue Jul 13 17:36:25 2010 +1000
+
+    legacy/ums: Fix build with DRI disabled
+
+commit 3c28c879e2f26265a50129d558b3aee261956f77
+Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
+Date:   Tue Jul 13 17:15:00 2010 +1000
+
+    legacy/ums: Re-add missing HWS initialisation
+
+commit 8ea8567cb2d45c8b2f2ba8b8893a112c1068e753
+Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
+Date:   Mon Jul 12 14:33:46 2010 +1000
+
+    ums: ChangeGC changed prototype in 1.8.99, not 1.7.98
+
+commit b0f7f8744aea54086d86936031d14c47b92854da
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Jun 20 19:18:04 2010 +0100
+
+    Reintegrate legacy UMS.
+    
+    As downstream still carries our old UMS driver in order to workaround
+    the catastrophic incoherency issues that currently plague the earlier
+    i8xx chipsets when trying to use GEM, it makes sense to integrate their
+    work into the main repository so that their fixes are shared and
+    available for all users.
+    
+    This combines the EXA code from 2.6 with the most recent updates through
+    to 2.9 when the UMS code was removed and the distributions were forced
+    to fork.
+
+commit 1cca56f9c8439e4ae2016d7ed5e415a690f80a66
+Author: Keith Packard <keithp@keithp.com>
+Date:   Thu Jul 1 09:56:40 2010 -0400
+
+    Destroy screen pixmap on screen close.
+    
+    This avoids a memory leak on server reset.
+    
+    Signed-off-by: Keith Packard <keithp@keithp.com>
+    [ickle: Added comments from Keith that explain the necessity of
+    destroying the pixmap ourselves and why chaining up in this instance is
+    not the correct approach.]
+    Reviewed-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5ce3f536b7169a1ee9eadf830e61bab230dd7239
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 9 14:06:43 2010 +0100
+
+    drmmode: Destroy the output on shutdown
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 6ff369cd2602497ee11273b50f76d1a7bf25991d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 9 14:00:31 2010 +0100
+
+    drmmode: Destroy Crtc on screen shutdown
+    
+    Should fix:
+    
+      Bug 26946 - CRTC cursor BO leak in 2D
+      https://bugs.freedesktop.org/show_bug.cgi?id=26946
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 6fba8c449f61341a98a5ae8d97effa6fd0610fd4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 9 12:12:13 2010 +0100
+
+    Add support for I854.
+    
+    I spotted that the kernel knew of the I854, but the pci-id was never
+    added to the ddx.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 141e88c8730a099a6ca5eab1350c2e53a680cb0d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 9 12:11:07 2010 +0100
+
+    video: forgotten amendment to previous commit.
+    
+    An extra sanity check to skip the wait if all clipped...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 272d1c14a39c32ade39b5a8b080a891f2b3d6e8e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 9 10:41:19 2010 +0100
+
+    video: apply the crtc box checks from dri.
+    
+    The dri code is much more careful in ensuring that the scan lines that
+    is waits for are valid. Copy this code to video, with a bit of work this
+    can be refactored, and perhaps even teach dri how to handle rotated
+    front buffers.
+    
+    References:
+    
+      Bug 28964 - [i965gm] GPU infinite MI_WAIT_FOR_EVENT while watching video
+                  in Totem
+      https://bugs.freedesktop.org/show_bug.cgi?id=28964
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 75850e824bd66b961b9ce21696d9090169f7b28f
+Author: Evan McClain <aeroevan@gmail.com>
+Date:   Thu Feb 25 01:51:42 2010 -0500
+
+    Add mbp_backlight support.
+    
+    Acked-by: Julien Cristau <jcristau@debian.org>
+
+commit a2aa4c23f65b03c389c2ba8eac0298dfb205e67d
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Jul 5 14:02:42 2010 +1000
+
+    uxa: oops typo in previous commit
+
+commit feff2ec80eeeba5074d19efcddf4867adf639b4f
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Jul 5 09:07:08 2010 +1000
+
+    uxa: don't compare planemask with FB_ALLONES.
+    
+    planemask is an unsigned long initialised to ~0, on 64-bit this is not equal
+    to an (unsigned int)-1.
+    
+    Use the macro provided to do this.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 7ad9c0bebf2c71db574e0302264859ce53cecd37
+Author: Jesse Barnes <jbarnes@virtuousgeek.org>
+Date:   Fri Jul 2 12:39:27 2010 -0700
+
+    add cscope files to gitignore
+
+commit afcd41820d7481912b49093670e9d7a4a6a2338f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 1 22:14:03 2010 +0100
+
+    Reduce front buffer stride prior to rejection
+    
+    If we reject the front buffer because it has too large a stride, repeat
+    the allocation using untiled for the cases where we can utilize laxer
+    hardware restrictions.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f8778b66a98d68e622cdf5b2d1fd959c4f7a2b2b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 1 21:58:43 2010 +0100
+
+    drmmode: Add missing newlines at the end of log messages.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 690fbd1a64c1e1fd07f7f8a5e39e05a33e4d0721
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 1 21:55:04 2010 +0100
+
+    drmmode: Use a copy of the converted mode on resize
+    
+    Avoid a potential use-after-free of the copied mode string by reusing
+    the converted kernel mode on resize.
+    
+    ==19897== Invalid read of size 8
+    ==19897==    at 0x661C330: ??? (strcpy.S:1308)
+    ==19897==    by 0x8618AE7: drmmode_set_mode_major (drmmode_display.c:293)
+    ==19897==    by 0x8618E6F: drmmode_xf86crtc_resize (drmmode_display.c:1299)
+    ==19897==    by 0x529A77: xf86RandR12ScreenSetSize (xf86RandR12.c:708)
+    ==19897==    by 0x4BD528: ProcRRSetScreenSize (rrscreen.c:301)
+    ==19897==    by 0x42B820: Dispatch (dispatch.c:432)
+    ==19897==    by 0x4254C9: main (main.c:289)
+    ==19897==  Address 0x72e91e0 is 0 bytes inside a block of size 9 free'd
+    ==19897==    at 0x4C23DBC: free (vg_replace_malloc.c:325)
+    ==19897==    by 0x48424F: xf86DeleteMode (xf86Mode.c:1921)
+    ==19897==    by 0x4942B7: xf86ProbeOutputModes (xf86Crtc.c:1572)
+    ==19897==    by 0x5290BB: xf86RandR12GetInfo12 (xf86RandR12.c:1551)
+    ==19897==    by 0x5313AE: RRGetInfo (rrinfo.c:202)
+    ==19897==    by 0x4BCCAA: rrGetScreenResources (rrscreen.c:337)
+    ==19897==    by 0x42B820: Dispatch (dispatch.c:432)
+    ==19897==    by 0x4254C9: main (main.c:289)
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 772f8236d50725f0b330508616b4f2a9a910662a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jun 30 13:58:05 2010 +0100
+
+    dri: Handle errors during GetBuffers() gracefully.
+    
+    Unwind the array of Pixmaps already allocated and report failure for the
+    old dri GetBuffers() path.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 17884af4eda01c05e7429ed6a195f3e4ceeff892
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jun 28 17:44:45 2010 +0100
+
+    Repair the damage to 'make distcheck' after splitting out i810
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 28c0ca676c47e7e38fabdd9ef24a70bd26701f33
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jun 25 13:40:22 2010 +0100
+
+    Remove unused inclusion of <sys/mman.h>
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2306e675c48bc00a8ca1f4545bb88c97d6ef4fa6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jun 25 13:32:02 2010 +0100
+
+    configure: Remove check for unused function, mprotect
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 6695296ca28da7c4f551b0e80a8d06b557d59a5e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jun 25 13:31:11 2010 +0100
+
+    configure: Remove unused checks for xext
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5c663ce8442bd3b69c96e29061c57cc565fca91d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Jun 20 15:01:16 2010 +0100
+
+    Rename common infrastructure to the intel namespace.
+    
+    After splitting out the i810 driver into its own legacy directory, we
+    can identify the common routines not as i830 but as intel. This
+    clarifies the code which *is* i830 specific.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 797d173a9af12055ba2609293182b616dd673ef4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Jun 20 12:52:10 2010 +0100
+
+    i810: Move into a legacy directory.
+    
+    The driver is still built but is no longer under active development so
+    move it and supporting files to a new directory.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cd61531a78b9a2cbdd6019199c43258f83e6e2ce
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Jun 20 21:03:44 2010 +0100
+
+    Remove unused configure option: --enable-video-debug
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit ca16e3133658504b68a6b5c83bb8712899016544
 Author: Carl Worth <cworth@cworth.org>
 Date:   Thu Jun 24 14:07:15 2010 -0700
