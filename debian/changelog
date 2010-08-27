@@ -1,9 +1,10 @@
-xserver-xorg-video-intel (2:2.3.2-2+lenny8) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.3.2-2+lenny8) stable; urgency=low
 
   * Enable low power render writes on GEN3 hardware.  Backported from a kernel
-    fix by Dave Airlie.
+    fix by Dave Airlie.  This should fix a number of issues (hangs in
+    particular) on 915/945-class hw.
 
- -- Julien Cristau <jcristau@debian.org>  Thu, 05 Aug 2010 17:46:43 -0400
+ -- Julien Cristau <jcristau@debian.org>  Fri, 27 Aug 2010 22:47:56 +0200
 
 xserver-xorg-video-intel (2:2.3.2-2+lenny7) stable; urgency=low
 
