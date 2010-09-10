@@ -179,7 +179,7 @@ index b8e0c0b..a4190ec 100644
 +	if (!CreateScratchPixmapsForScreen(scrn->scrnIndex))
 +		return FALSE;
 +
-+	if (!IS_GEN6(intel)
++	if (!IS_GEN6(intel))
 +		drmmode_copy_fb(scrn);
 +
  	if (!xf86SetDesiredModes(scrn))
