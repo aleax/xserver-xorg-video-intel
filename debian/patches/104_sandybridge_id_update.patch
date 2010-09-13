@@ -119,7 +119,7 @@ index b8e0c0b..b13894e 100644
 +	case PCI_CHIP_SANDYBRIDGE_M_GT2:
 +	case PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS:
 +	case PCI_CHIP_SANDYBRIDGE_S_GT:
-+		chipset->name = "Sandybridge";
++		chipname = "Sandybridge";
 +		break;
  	default:
  		chipname = "unknown chipset";
