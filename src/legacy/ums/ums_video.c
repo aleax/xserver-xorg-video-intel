@@ -2184,7 +2184,7 @@ ums_clip_video_helper (ScrnInfoPtr pScrn,
     return ret;
 }
 
-#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,8,99,0,0)
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,7,99,0,0)
 #define ChangeGC(gc, flags, val) ChangeGC(NullClient, gc, flags, val)
 #define SetVal(v, x) v.val = x
 #else
