@@ -119,12 +119,9 @@ if test "x$DRI" != xno; then
   CFLAGS="$save_CFLAGS $DEBUGFLAGS"
 fi
 
-dnl This could be removed by open-coding DRICreatePCIBusID for
-dnl intel_kernel_mode_enabled
-PKG_CHECK_MODULES(DRI, [xf86driproto glproto])
-
 AM_CONDITIONAL(DRI, test x$DRI = xyes)
 if test "$DRI" = yes; then
+        PKG_CHECK_MODULES(DRI, [xf86driproto glproto])
         AC_DEFINE(BUILD_DRI,1,[Enable DRI driver support])
         AC_DEFINE(BUILD_DRI_DEVEL,1,[Enable developmental DRI driver support])
 fi

@@ -1174,24 +1174,6 @@ ums_allocate_2d_memory(ScrnInfoPtr pScrn)
     return TRUE;
 }
 
-Bool
-ums_allocate_pwrctx(ScrnInfoPtr pScrn)
-{
-    I830Ptr pI830 = I830PTR(pScrn);
-
-    pI830->power_context = ums_allocate_memory(pScrn, "power context",
-						PWRCTX_SIZE, PITCH_NONE,
-						GTT_PAGE_SIZE,
-						NEED_LIFETIME_FIXED,
-						TILE_NONE);
-    if (!pI830->power_context) {
-	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-		"Failed to allocate power context.\n");
-	return FALSE;
-    }
-    return TRUE;
-}
-
 #ifdef BUILD_DRI
 static unsigned int
 myLog2(unsigned int n)
@@ -1348,6 +1330,24 @@ ums_allocate_hwstatus(ScrnInfoPtr pScrn)
     if (pI830->hw_status == NULL) {
 	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 		"Failed to allocate hw status page.\n");
+	return FALSE;
+    }
+    return TRUE;
+}
+
+Bool
+ums_allocate_pwrctx(ScrnInfoPtr pScrn)
+{
+    I830Ptr pI830 = I830PTR(pScrn);
+
+    pI830->power_context = ums_allocate_memory(pScrn, "power context",
+						PWRCTX_SIZE, PITCH_NONE,
+						GTT_PAGE_SIZE,
+						NEED_LIFETIME_FIXED,
+						TILE_NONE);
+    if (!pI830->power_context) {
+	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+		"Failed to allocate power context.\n");
 	return FALSE;
     }
     return TRUE;

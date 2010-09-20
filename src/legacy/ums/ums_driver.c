@@ -2066,10 +2066,8 @@ ums_try_memory_allocation(ScrnInfoPtr pScrn)
 	if (!ums_allocate_pwrctx(pScrn))
 	    goto failed;
 
-#if BUILD_DRI
     if (xf86dri && !ums_allocate_3d_memory(pScrn))
 	goto failed;
-#endif
 
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "%siled allocation successful.\n",
 	    tiled ? "T" : "Unt");

@@ -66,7 +66,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "GL/glxint.h"
 #include "ums_dri.h"
 #endif
-#include <drm/drm.h>
 #include "intel_bufmgr.h"
 #include "i915_drm.h"
 
