@@ -70,8 +70,16 @@ static const SymTabRec _intel_chipsets[] = {
     {PCI_CHIP_Q45_G,		"Q45/Q43"},
     {PCI_CHIP_G41_G,		"G41"},
     {PCI_CHIP_B43_G,		"B43"},
+    {PCI_CHIP_B43_G1,		"B43"},
     {PCI_CHIP_IGDNG_D_G,		"Clarkdale"},
     {PCI_CHIP_IGDNG_M_G,		"Arrandale"},
+    {PCI_CHIP_SANDYBRIDGE_GT1,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_GT2,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_GT2_PLUS,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_M_GT1,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_M_GT2,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS,	"Sandybridge" },
+    {PCI_CHIP_SANDYBRIDGE_S_GT,	"Sandybridge" },
     {-1,				NULL}
 };
 SymTabRec *intel_chipsets = (SymTabRec *) _intel_chipsets;
@@ -114,8 +122,13 @@ static const struct pci_id_match intel_device_match[] = {
     INTEL_DEVICE_MATCH (PCI_CHIP_B43_G, 0 ),
     INTEL_DEVICE_MATCH (PCI_CHIP_IGDNG_D_G, 0 ),
     INTEL_DEVICE_MATCH (PCI_CHIP_IGDNG_M_G, 0 ),
-    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE, 0 ),
-    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_M, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_GT1, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_GT2, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_GT2_PLUS, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_M_GT1, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_M_GT2, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS, 0 ),
+    INTEL_DEVICE_MATCH (PCI_CHIP_SANDYBRIDGE_S_GT, 0 ),
     { 0, 0, 0 },
 };
 
@@ -154,6 +167,13 @@ static PciChipsets intel_pci_chipsets[] = {
     {PCI_CHIP_B43_G,		PCI_CHIP_B43_G,		NULL},
     {PCI_CHIP_IGDNG_D_G,		PCI_CHIP_IGDNG_D_G,	NULL},
     {PCI_CHIP_IGDNG_M_G,		PCI_CHIP_IGDNG_M_G,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_GT1,	PCI_CHIP_SANDYBRIDGE_GT1,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_GT2,	PCI_CHIP_SANDYBRIDGE_GT2,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_GT2_PLUS,	PCI_CHIP_SANDYBRIDGE_GT2_PLUS,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_M_GT1,	PCI_CHIP_SANDYBRIDGE_M_GT1,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_M_GT2,	PCI_CHIP_SANDYBRIDGE_M_GT2,	NULL},
+    {PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS,	PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS, NULL},
+    {PCI_CHIP_SANDYBRIDGE_S_GT,		PCI_CHIP_SANDYBRIDGE_S_GT,	NULL},
     {-1,				-1, NULL }
 };
 
@@ -288,6 +308,15 @@ void intel_detect_chipset(ScrnInfoPtr scrn,
 	break;
     case PCI_CHIP_IGDNG_M_G:
 	chipset->name = "Arrandale";
+	break;
+    case PCI_CHIP_SANDYBRIDGE_GT1:
+    case PCI_CHIP_SANDYBRIDGE_GT2:
+    case PCI_CHIP_SANDYBRIDGE_GT2_PLUS:
+    case PCI_CHIP_SANDYBRIDGE_M_GT1:
+    case PCI_CHIP_SANDYBRIDGE_M_GT2:
+    case PCI_CHIP_SANDYBRIDGE_M_GT2_PLUS:
+    case PCI_CHIP_SANDYBRIDGE_S_GT:
+	chipset->name = "Sandybridge";
 	break;
     default:
 	chipset->name = "unknown chipset";
