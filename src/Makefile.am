@@ -51,8 +51,6 @@ intel_drv_la_SOURCES = \
 	 intel_uxa.c \
          intel_video.c \
          intel_video.h \
-	 intel_transform.c \
-	 intel_transform.h \
 	 i830_3d.c \
 	 i830_render.c \
 	 i830_reg.h \

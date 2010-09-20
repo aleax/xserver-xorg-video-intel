@@ -37,10 +37,6 @@
 #include "intel_driver.h"
 #include "legacy/legacy.h"
 
-#include <xf86drmMode.h>
-
-#include "unistd.h"
-
 static const SymTabRec _intel_chipsets[] = {
     {PCI_CHIP_I810,		"i810"},
     {PCI_CHIP_I810_DC100,	"i810-dc100"},
@@ -336,21 +332,6 @@ static Bool intel_driver_func(ScrnInfoPtr pScrn,
     }
 }
 
-static Bool intel_has_kms(struct pci_device *dev)
-{
-	char busid[120];
-	int ret;
-
-	snprintf(busid, sizeof(busid),
-		 "pci:%04x:%02x:%02x.%d",
-		 dev->domain, dev->bus, dev->dev, dev->func);
-	ret = drmCheckModesettingSupported(busid);
-	if (ret && xf86LoadKernelModule("i915"))
-	    ret = drmCheckModesettingSupported(busid);
-
-	return ret == 0;
-}
-
 /*
  * intel_pci_probe --
  *
@@ -358,10 +339,10 @@ static Bool intel_has_kms(struct pci_device *dev)
  * Setup the dispatch table for the rest of the driver functions.
  *
  */
-static Bool intel_pci_probe(DriverPtr		driver,
-			    int		entity_num,
-			    struct pci_device	*device,
-			    intptr_t		match_data)
+static Bool intel_pci_probe (DriverPtr		driver,
+			     int		entity_num,
+			     struct pci_device	*device,
+			     intptr_t		match_data)
 {
     ScrnInfoPtr scrn = NULL;
 
@@ -386,10 +367,7 @@ static Bool intel_pci_probe(DriverPtr		driver,
 	    break;
 
 	default:
-	    if (intel_has_kms(device))
-		intel_init_scrn(scrn);
-	    else
-		lg_ums_init(scrn);
+	    intel_init_scrn(scrn);
 	    break;
 	}
 #endif

@@ -61,16 +61,13 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <pciaccess.h>
 
 #include "xf86drm.h"
-#include "intel_bufmgr.h"
-#include "i915_drm.h"
-
-#ifdef BUILD_DRI
 #include "sarea.h"
 #define _XF86DRI_SERVER_
 #include "dri.h"
 #include "dri2.h"
 #include "GL/glxint.h"
-#endif
+#include "intel_bufmgr.h"
+#include "i915_drm.h"
 
 #include "intel_driver.h"
 
