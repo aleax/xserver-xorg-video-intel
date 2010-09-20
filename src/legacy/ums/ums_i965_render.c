@@ -186,16 +186,11 @@ static Bool i965_get_dest_format(PicturePtr pDstPicture, uint32_t *dst_format)
 
 static Bool i965_check_composite_texture(PicturePtr pPict, int unit)
 {
-    ScrnInfoPtr pScrn;
-    int w, h, i;
+    ScrnInfoPtr pScrn = xf86Screens[pPict->pDrawable->pScreen->myNum];
+    int w = pPict->pDrawable->width;
+    int h = pPict->pDrawable->height;
+    int i;
 
-    if (!pPict->pDrawable)
-	    return FALSE;
-
-    pScrn = xf86Screens[pPict->pDrawable->pScreen->myNum];
-
-    w = pPict->pDrawable->width;
-    h = pPict->pDrawable->height;
     if ((w > 8192) || (h > 8192))
         I830FALLBACK("Picture w/h too large (%dx%d)\n", w, h);
 
@@ -245,7 +240,7 @@ ums_i965_check_composite(int op, PicturePtr pSrcPicture, PicturePtr pMaskPicture
 	    I830FALLBACK("Component alpha not supported with source "
 			 "alpha and source value blending.\n");
 	}
-    }
+    } 
 
     if (!i965_check_composite_texture(pSrcPicture, 0))
         I830FALLBACK("Check Src picture texture\n");
