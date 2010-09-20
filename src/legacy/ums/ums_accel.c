@@ -158,7 +158,35 @@ ums_I830Sync(ScrnInfoPtr pScrn)
    ums_I830EmitFlush(pScrn);
 
    ums_batch_flush(pScrn, TRUE);
-   ums_wait_ring_idle(pScrn);
+
+   if (pI830->directRenderingType > DRI_NONE) {
+       struct drm_i915_irq_emit emit;
+       struct drm_i915_irq_wait wait;
+       int ret;
+
+       /* Most of the uses of I830Sync while using GEM should actually be
+	* using set_domain on a specific buffer.  We're not there yet, so fake
+	* it up using irq_emit/wait.  It's still better than spinning on
+	* register reads for idle.
+	*/
+       emit.irq_seq = &wait.irq_seq;
+       ret = drmCommandWriteRead(pI830->drmSubFD, DRM_I830_IRQ_EMIT, &emit,
+			    sizeof(emit));
+       if (ret != 0)
+	   FatalError("Failure to emit IRQ: %s\n", strerror(-ret));
+
+       do {
+	   ret = drmCommandWrite(pI830->drmSubFD, DRM_I830_IRQ_WAIT, &wait,
+				 sizeof(wait));
+       } while (ret == -EINTR);
+
+       if (ret != 0)
+	   FatalError("Failure to wait for IRQ: %s\n", strerror(-ret));
+
+       ums_refresh_ring(pScrn);
+   } else {
+       ums_wait_ring_idle(pScrn);
+   }
 
    pI830->nextColorExpandBuf = 0;
 }
