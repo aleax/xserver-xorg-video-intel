@@ -1,11 +1,17 @@
 xserver-xorg-video-intel (2:2.12.0-1ubuntu5) maverick; urgency=low
 
+  [ Robert Hooker ]
   * Disable DRI on Sandybridge chipsets. Support for them will not be released
     until the Q42010 Intel releases, which will not be pulled into maverick.
     Without this change, all 3D apps on these devices cause hangs.
     (LP: #639667)
 
- -- Robert Hooker <robert.hooker@canonical.com>  Thu, 23 Sep 2010 20:03:59 -0400
+  [ Christopher James Halse Rogers ]
+  * debian/patches/101_copy-fb.patch: Move scratch pixmap creation to the
+    drmmode_copy_fb function, and clean up after we've used it.  Fixes the
+    SIGSEGV in FreeClientResources when logging out of KDE (LP: #628077)
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 25 Sep 2010 20:44:22 +1000
 
 xserver-xorg-video-intel (2:2.12.0-1ubuntu4) maverick; urgency=low
 
