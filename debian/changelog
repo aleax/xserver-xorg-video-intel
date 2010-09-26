@@ -10,8 +10,12 @@ xserver-xorg-video-intel (2:2.12.0-1ubuntu5) maverick; urgency=low
   * debian/patches/101_copy-fb.patch: Move scratch pixmap creation to the
     drmmode_copy_fb function, and clean up after we've used it.  Fixes the
     SIGSEGV in FreeClientResources when logging out of KDE (LP: #628077)
+  * debian/patches/106_backport_vblank_on_server_regenerate_fix.patch:
+    Backport fix for SwapBuffers hang after server regenerate.  LP 628077
+    was hiding this by crashing the server.  Fixes kwin desktop effects hanging
+    on second and subsequent logins.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 25 Sep 2010 20:44:22 +1000
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 26 Sep 2010 10:12:15 +1000
 
 xserver-xorg-video-intel (2:2.12.0-1ubuntu4) maverick; urgency=low
 
