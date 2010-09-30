@@ -1,3 +1,19 @@
+commit 9f232ad67c72b7869dcd112207bc41dc01d7d104
+Author: Carl Worth <cworth@cworth.org>
+Date:   Thu Sep 30 08:45:49 2010 -0700
+
+    Increment version to 2.13.0
+    
+    For the new, major release.
+
+commit 99ec9bb0f1eaf2e5c04614957a51624a928526e5
+Author: Carl Worth <cworth@cworth.org>
+Date:   Thu Sep 30 08:45:15 2010 -0700
+
+    Add release notes for the 2.13.0 release.
+    
+    Which is functionalliy identical to 2.12.902.
+
 commit d4c013cb9d92d2959c9a98eca20e43ab14ae22e3
 Author: Carl Worth <cworth@cworth.org>
 Date:   Tue Sep 28 20:49:52 2010 -0700

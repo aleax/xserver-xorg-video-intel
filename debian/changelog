@@ -1,6 +1,6 @@
-xserver-xorg-video-intel (2:2.12.902-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.13-1) UNRELEASED; urgency=low
 
-  * New upstream release candidate.
+  * New upstream release.
   * Bump libdrm build-dependency to 2.4.22.
 
  -- Sven Joachim <svenjoac@gmx.de>  Wed, 29 Sep 2010 09:58:16 +0200
