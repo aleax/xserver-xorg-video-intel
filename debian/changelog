@@ -28,8 +28,11 @@ xserver-xorg-video-intel (2:2.12.0-1ubuntu5) maverick; urgency=low
     Backport fix for SwapBuffers hang after server regenerate.  LP 628077
     was hiding this by crashing the server.  Fixes kwin desktop effects hanging
     on second and subsequent logins.
+  * Cherry-pick e30f0338 to free the Screen pixmap on close.  Fixes a memory
+    leak on server regeneration, and another crash on KDE log out hidden by
+    LP 628077.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 26 Sep 2010 10:12:15 +1000
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 27 Sep 2010 14:34:27 +1000
 
 xserver-xorg-video-intel (2:2.12.0-1ubuntu4) maverick; urgency=low
 
