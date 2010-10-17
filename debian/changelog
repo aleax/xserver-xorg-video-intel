@@ -1,3 +1,10 @@
+xserver-xorg-video-intel (2:2.12.0+shadow-3) UNRELEASED; urgency=low
+
+  * Cherry-pick: display: do not report failure for setting unrecognised
+    properties.  This unbreaks EDID reporting.
+
+ -- Julien Cristau <jcristau@debian.org>  Sun, 17 Oct 2010 11:14:48 +0200
+
 xserver-xorg-video-intel (2:2.12.0+shadow-2) unstable; urgency=low
 
   * UMS is gone, this means Linux-only (closes: 597845).
