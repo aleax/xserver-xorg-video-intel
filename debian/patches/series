@@ -1,5 +1,2 @@
 101_copy-fb.patch
-102-disable-page-flipping-v2.patch
-103-mbp-backlight-support.patch
-104_sandybridge_id_update.patch
 105_sandybridge_dri_disable.patch

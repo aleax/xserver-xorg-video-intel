@@ -17,6 +17,7 @@ xserver-xorg-video-intel (2:2.13.0-1ubuntu1) natty; urgency=low
       the ability to disable KMS.
   * Dropped patches:
       100_b43_pciid_update.patch: Upstream
+      102-disable-page-flipping-v2.patch: Should be unneeded.
       103-mbp-backlight-support.patch: Upstream
       104_sandybridge_id_update.patch: Upstream
       106_backport_vblank_on_server_regenerate_fix.patch: Upstream
