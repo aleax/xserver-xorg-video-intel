@@ -8,6 +8,10 @@ xserver-xorg-video-intel (2:2.13.0-1ubuntu1) natty; urgency=low
     - 101_copy-fb.patch: Adds feature to driver so Xserver can draw
       root windows with no background.  This enables smooth boot with
       Plymouth.
+    - 105_sandybridge_dri_disable.patch: Disable DRI on Sandybridge until it is
+      working (drop with mesa 7.10).
+    - 108_sandybridge_disable_Xv.patch: Disable Xv on Sandybridge until it is 
+      supported. (Drop with intel 2.13.901).
     - control: Add Recommends on intel-gpu-tools to xserver-xorg-video-intel
       package for use by GPU hang scripts.
     - xserver-xorg-video-intel.preinst.in, xserver-xorg-video-intel.postinst.in,
@@ -22,7 +26,7 @@ xserver-xorg-video-intel (2:2.13.0-1ubuntu1) natty; urgency=low
       104_sandybridge_id_update.patch: Upstream
       106_backport_vblank_on_server_regenerate_fix.patch: Upstream
 
- -- Robert Hooker <sarvatt@ubuntu.com>  Mon, 01 Nov 2010 11:43:22 -0400
+ -- Robert Hooker <sarvatt@ubuntu.com>  Mon, 08 Nov 2010 11:27:15 -0500
 
 xserver-xorg-video-intel (2:2.13.0-1) experimental; urgency=low
 
