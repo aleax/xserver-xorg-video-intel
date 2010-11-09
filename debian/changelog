@@ -1,3 +1,9 @@
+xserver-xorg-video-intel (2:2.13.901-1) UNRELEASED; urgency=low
+
+  * New upstream release candidate.
+
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 09 Nov 2010 14:22:52 +0100
+
 xserver-xorg-video-intel (2:2.13.0-2) unstable; urgency=low
 
   [ Cyril Brulebois ]
