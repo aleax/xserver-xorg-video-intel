@@ -1,11 +1,11 @@
-xserver-xorg-video-intel (2:2.13.901-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.13.901-1) experimental; urgency=low
 
   * New upstream release candidate.
   * Bump build-dep on libdrm-dev: 2.4.22-2 contains some cherry-picked
     changes to allow this release candidate to build and run.
   * Drop patch: i8xx-shadow.diff
 
- -- Cyril Brulebois <kibi@debian.org>  Tue, 09 Nov 2010 14:22:52 +0100
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 09 Nov 2010 14:54:21 +0100
 
 xserver-xorg-video-intel (2:2.13.0-2) unstable; urgency=low
 
