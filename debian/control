@@ -30,6 +30,7 @@ Build-Depends:
  libxcb-aux0-dev,
  libxcb-dri2-0-dev,
 # end xvmc
+ libudev-dev [linux-any],
  dpkg-dev (>= 1.14.17),
  quilt,
  automake,
