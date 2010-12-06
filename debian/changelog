@@ -1,7 +1,13 @@
 xserver-xorg-video-intel (2:2.13.0-3) UNRELEASED; urgency=low
 
+  [ Julien Cristau ]
   * Revert "display: outputs are enabled automatically by KMS".
     Closes: #600405.
+
+  [ Cyril Brulebois ]
+  * Cherry-pick from upstream:
+    + a44a63d2: "Wait for any pending rendering before switching modes."
+      Hopefully we should get rid of a number of GPU hangs.
 
  -- Julien Cristau <jcristau@debian.org>  Mon, 15 Nov 2010 17:11:30 +0100
 
