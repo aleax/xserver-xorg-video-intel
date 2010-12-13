@@ -1,3 +1,27 @@
+xserver-xorg-video-intel (2:2.13.901-2ubuntu1) natty; urgency=low
+
+  * New upstream release.
+    - Fixes a GPU lockup when using java (LP: #668270)
+  * Remaining Ubuntu changes:
+    - debian/apport-gpu-error-intel.py, debian/xserver-xorg-video-intel.udev,
+      debian/xserver-xorg-video-intel:
+      Add apport script to collect debug information on GPU hangs
+    - rules: Install udev rule to run the script when the kernel detects hung GPU
+    - 101_copy-fb.patch: Adds feature to driver so Xserver can draw
+      root windows with no background.  This enables smooth boot with
+      Plymouth.
+    - 105_sandybridge_dri_disable.patch: Disable DRI on Sandybridge until it is
+      working (drop with mesa 7.10).
+    - control: Add Recommends on intel-gpu-tools to xserver-xorg-video-intel
+      package for use by GPU hang scripts.
+    - xserver-xorg-video-intel.preinst.in, xserver-xorg-video-intel.postinst.in,
+      rules:
+      Don't install /etc/modprobe.d/i915-kms.conf, and remove it on upgrades.
+      At best it's redundant (as the kernel defaults to KMS), at worst it breaks
+      the ability to disable KMS.
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Tue, 30 Nov 2010 10:59:32 -0800
+
 xserver-xorg-video-intel (2:2.13.901-2) experimental; urgency=low
 
   * Build against Xserver 1.9.1 rc1.
