@@ -7,6 +7,7 @@ xserver-xorg-video-intel (2:2.13.903-1) UNRELEASED; urgency=low
   [ Cyril Brulebois ]
   * New upstream release candidate.
   * Bump libdrm-dev build-dep.
+  * Drop libdrm-from-sid-is-ok.diff accordingly.
 
  -- Robert Hooker <sarvatt@ubuntu.com>  Thu, 11 Nov 2010 08:58:46 -0500
 
