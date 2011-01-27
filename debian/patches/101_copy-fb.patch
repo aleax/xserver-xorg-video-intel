@@ -49,7 +49,12 @@ Index: xserver-xorg-video-intel/src/intel_display.c
  	}
  
  	intel->modes = mode;
++
++#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 9
++	srcn->pScreen->canDoBGNoneRoot = TRUE;
++#else
 +	scrn->canDoBGNoneRoot = TRUE;
++#endif
 +
  	return TRUE;
  }
