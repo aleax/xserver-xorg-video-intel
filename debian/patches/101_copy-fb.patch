@@ -155,7 +155,6 @@ Index: xserver-xorg-video-intel/src/intel_display.c
 +
 +	intel_batch_emit_flush(scrn);
 +	intel_batch_submit(scrn, TRUE);
-+	intel_batch_wait_last(scrn);
 +
 +	(*pScreen->DestroyPixmap)(src);
 +	(*pScreen->DestroyPixmap)(dst);
