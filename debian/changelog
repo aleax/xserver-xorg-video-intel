@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.14.0-1ubuntu5) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.14.0-1ubuntu5) natty; urgency=low
 
   * control: For apport hook, depend on apport, intel-gpu-tools, and
     python instead of python-dev.
