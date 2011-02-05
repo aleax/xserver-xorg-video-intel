@@ -39,8 +39,12 @@ Vcs-Browser: http://git.debian.org/?p=pkg-xorg/driver/xserver-xorg-video-intel.g
 
 Package: xserver-xorg-video-intel
 Architecture: amd64 i386
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${xviddriver:Depends}
-Provides: ${xviddriver:Provides}
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ ${xviddriver:Depends},
+Provides:
+ ${xviddriver:Provides}
 Description: X.Org X server -- Intel i8xx, i9xx display driver
  This package provides the driver for the Intel i8xx and i9xx family
  of chipsets, including i810, i815, i830, i845, i855, i865, i915, i945
@@ -56,8 +60,11 @@ Description: X.Org X server -- Intel i8xx, i9xx display driver
 
 Package: xserver-xorg-video-intel-dbg
 Architecture: amd64 i386
-Depends: xserver-xorg-video-intel (= ${binary:Version}), ${shlibs:Depends}
-Recommends: intel-gpu-tools
+Depends:
+ xserver-xorg-video-intel (= ${binary:Version}),
+ ${shlibs:Depends},
+Recommends:
+ intel-gpu-tools,
 Section: debug
 Priority: extra
 Description: X.Org X server -- Intel i8xx, i9xx display driver (debug symbols)
