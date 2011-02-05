@@ -19,6 +19,7 @@ xserver-xorg-video-intel (2:2.14.0-3) UNRELEASED; urgency=low
   * Update Uploaders list. Thanks, David & Brice!
   * Remove long obsolete Replaces.
   * Wrap Depends/Provides/Recommends.
+  * Bump Standards-Version to 3.9.1 (no changes needed).
 
  -- Cyril Brulebois <kibi@debian.org>  Sat, 05 Feb 2011 07:43:53 +0100
 
