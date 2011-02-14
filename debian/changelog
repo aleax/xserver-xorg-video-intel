@@ -1,3 +1,13 @@
+xserver-xorg-video-intel (2:2.14.0-1ubuntu8) natty; urgency=low
+
+  * Add 111_fix_clipped_window_plane_offset.patch,
+    112_fix_error_in_4c4ad555.patch: Fixes issue where vertical green line
+    and strange colors shows up when playing gstreamer with certain
+    videos, when dragged.
+    (LP: #460677)
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Mon, 14 Feb 2011 15:03:28 -0800
+
 xserver-xorg-video-intel (2:2.14.0-1ubuntu7) natty; urgency=low
 
   * Rename 110_from_git_da990536eca09c6de74627541cd56ecfad925eda.patch

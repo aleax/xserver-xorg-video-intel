@@ -3,3 +3,5 @@
 108_undo_dmg_trans_before_append.patch
 109_dont_reconstruct_glyph_cache_on_rotate.patch
 110_warnings_cleanup.patch
+111_fix_clipped_window_plane_offset.patch
+112_fix_error_in_4c4ad555.patch
