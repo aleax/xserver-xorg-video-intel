@@ -4,6 +4,10 @@ xserver-xorg-video-intel (2:2.13.0-6) UNRELEASED; urgency=low
     - uxa: Fallback if the temporary is too large
   * This fixes a null pointer dereference with some rendering operations
     involving large pictures (Closes: #613830). Thanks, Enrico!
+  * Cherry-pick from upstream, thanks to Bjørn Mork:
+    - Don't replace the scanout bo through PutImage
+    - dri: Fix the use of the uninitialised bo for flink
+  * These should fix issues with SDL (Closes: #602207).
 
  -- Cyril Brulebois <kibi@debian.org>  Thu, 17 Feb 2011 23:20:47 +0100
 
