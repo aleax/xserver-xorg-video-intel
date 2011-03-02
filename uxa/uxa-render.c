@@ -460,12 +460,12 @@ uxa_try_driver_solid_fill(PicturePtr pSrc,
 }
 
 static PicturePtr
-uxa_picture_for_pixman_format(ScreenPtr screen,
+uxa_picture_for_pixman_format(ScreenPtr pScreen,
 			      pixman_format_code_t format,
 			      int width, int height)
 {
-	PicturePtr picture;
-	PixmapPtr pixmap;
+	PicturePtr pPicture;
+	PixmapPtr pPixmap;
 	int error;
 
 	if (format == PIXMAN_a1)
@@ -475,29 +475,24 @@ uxa_picture_for_pixman_format(ScreenPtr screen,
 	if (PIXMAN_FORMAT_A(format) == 0)
 	    format = PIXMAN_a8r8g8b8;
 
-	pixmap = screen->CreatePixmap(screen, width, height,
-					PIXMAN_FORMAT_DEPTH(format),
-					UXA_CREATE_PIXMAP_FOR_MAP);
-	if (!pixmap)
+	pPixmap = (*pScreen->CreatePixmap)(pScreen, width, height,
+					   PIXMAN_FORMAT_DEPTH(format),
+					   UXA_CREATE_PIXMAP_FOR_MAP);
+	if (!pPixmap)
 		return 0;
 
-	if (!uxa_pixmap_is_offscreen(pixmap)) {
-		screen->DestroyPixmap(pixmap);
-		return 0;
-	}
-
-	picture = CreatePicture(0, &pixmap->drawable,
-				PictureMatchFormat(screen,
-						   PIXMAN_FORMAT_DEPTH(format),
-						   format),
-				0, 0, serverClient, &error);
-	screen->DestroyPixmap(pixmap);
-	if (!picture)
+	pPicture = CreatePicture(0, &pPixmap->drawable,
+				 PictureMatchFormat(pScreen,
+						    PIXMAN_FORMAT_DEPTH(format),
+						    format),
+				 0, 0, serverClient, &error);
+	(*pScreen->DestroyPixmap) (pPixmap);
+	if (!pPicture)
 		return 0;
 
-	ValidatePicture(picture);
+	ValidatePicture(pPicture);
 
-	return picture;
+	return pPicture;
 }
 
 static PicturePtr
