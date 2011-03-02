@@ -1,3 +1,13 @@
+xserver-xorg-video-intel (2:2.14.0-1ubuntu12) natty; urgency=low
+
+  * Pull prerequisite commit into 
+    109_dont_reconstruct_glyph_cache_on_rotate.patch.  We mostly didn't notice
+    because the copy-fb codepath initialises the resources itself.  Fixes
+    Pixmap assert on Xserver startup when copy-fb fails, such as on hybrid
+    graphics systems. (LP: #718620)
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 02 Mar 2011 14:12:35 +1100
+
 xserver-xorg-video-intel (2:2.14.0-1ubuntu11) natty; urgency=low
 
   [Brian Murray]
