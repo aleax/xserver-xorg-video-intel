@@ -40,6 +40,9 @@ xserver-xorg-video-intel (2:2.14.0-4ubuntu1) natty; urgency=low
     because the copy-fb codepath initialises the resources itself.  Fixes
     Pixmap assert on Xserver startup when copy-fb fails, such as on hybrid
     graphics systems. (LP: #718620)
+  * debian/control:
+    - Dropped Ubuntu change: remove a bunch of Conflicts/Replaces against 
+      packages last seen in Hardy.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 02 Mar 2011 14:12:35 +1100
 
