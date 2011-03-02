@@ -1,3 +1,9 @@
+xserver-xorg-video-intel (2:2.14.901-1+exp1) UNRELEASED; urgency=low
+
+  * Rebuild against Xserver 1.10 rc2.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 20 Feb 2011 12:34:18 +0100
+
 xserver-xorg-video-intel (2:2.14.901-1) UNRELEASED; urgency=low
 
   * New upstream snapshot (2.15 rc1).
