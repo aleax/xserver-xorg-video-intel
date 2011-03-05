@@ -6,6 +6,7 @@ xserver-xorg-video-intel (2:2.14.901-1) UNRELEASED; urgency=low
     file (/etc/X11/XvMCConfig). Accordingly, remove extraneous symlinks:
     - /usr/lib/libI810XvMC.so
     - /usr/lib/libIntelXvMC.so
+  * Override lintian warning about the libXvMC shared objects.
 
  -- Cyril Brulebois <kibi@debian.org>  Wed, 02 Mar 2011 19:40:58 +0100
 
