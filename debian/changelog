@@ -1,6 +1,11 @@
 xserver-xorg-video-intel (2:2.14.901-1) UNRELEASED; urgency=low
 
   * New upstream snapshot (2.15 rc1).
+  * Apparently, using libXvMC means adding the name of the library (like
+    libI810XvMC.so.1 or libIntelXvMC.so.1) to the libXvMC configuration
+    file (/etc/X11/XvMCConfig). Accordingly, remove extraneous symlinks:
+    - /usr/lib/libI810XvMC.so
+    - /usr/lib/libIntelXvMC.so
 
  -- Cyril Brulebois <kibi@debian.org>  Wed, 02 Mar 2011 19:40:58 +0100
 
