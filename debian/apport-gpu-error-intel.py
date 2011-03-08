@@ -75,7 +75,12 @@ def get_dump_signature(text):
         match = regex.search(text)
         if match and match.group(1) != "00000000":
             codes.append("%s: 0x%s" %(k, match.group(1)))
-    return "%s (%s)" %( m.hexdigest()[:8], string.join(codes, " ") )
+    if len(codes) > 1:
+        return "(%s)" %( string.join(codes, " ") )
+    elif len(codes) == 1:
+        return "%s (%s)" %( m.hexdigest()[:8], string.join(codes, " ") )
+    else:
+        return "%s" %( m.hexdigest()[:8] )
 
 def main(argv=None):
     if argv is None:
