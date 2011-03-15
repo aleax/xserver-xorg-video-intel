@@ -46,8 +46,16 @@ pci_devices = [
     { 'name':'b43',         're':'(8086:2e42)' },
     { 'name':'clarkdale',   're':'(8086:0042)' },
     { 'name':'arrandale',   're':'(8086:0046)' },
-    { 'name':'sandybridge', 're':'(8086:0102)' },
-    { 'name':'sandybridgem','re':'(8086:0106)' },
+    { 'name':'sandybridge-hb',    're':'(8086:0100)' },
+    { 'name':'sandybridge-gt1',   're':'(8086:0102)' },
+    { 'name':'sandybridge-m-hb',  're':'(8086:0104)' },
+    { 'name':'sandybridge-m-gt1', 're':'(8086:0106)' },
+    { 'name':'sandybridge-s-hb',  're':'(8086:0108)' },
+    { 'name':'sandybridge-s',     're':'(8086:010a)' },
+    { 'name':'sandybridge-gt2',   're':'(8086:0112)' },
+    { 'name':'sandybridge-m-gt2', 're':'(8086:0116)' },
+    { 'name':'sandybridge-gt2+',  're':'(8086:0122)' },
+    { 'name':'sandybridge-m-gt2+','re':'(8086:0126)' },
     ]
 for device in pci_devices:
     device['rc'] = re.compile(device['re'], re.IGNORECASE)
