@@ -1,3 +1,10 @@
+xserver-xorg-video-intel (2:2.14.0-4ubuntu3) UNRELEASED; urgency=low
+
+  * apport-gpu-error-intel.py:
+    - Drop some pci id's which are actually bridge chips
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Tue, 15 Mar 2011 12:51:54 -0700
+
 xserver-xorg-video-intel (2:2.14.0-4ubuntu2) natty; urgency=low
 
   * apport-gpu-error-intel.py:
