@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.14.0-4ubuntu3) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.14.0-4ubuntu3) natty; urgency=low
 
   [ Bryce Harrington ]
   * apport-gpu-error-intel.py:
