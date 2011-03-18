@@ -109,8 +109,8 @@ def main(argv=None):
         report['Title'] = "[%s] GPU lockup" %(report['Chipset'])
     dump_signature = get_dump_signature(report['IntelGpuDump'])
     if dump_signature:
-        report['DumpSignature'] = dump_signature
-        report['Title'] += " " + report['DumpSignature']
+        report['Title'] += " " + dump_signature
+        report['DuplicateSignature'] = dump_signature
 
     attach_hardware(report)
     attach_related_packages(report, ["xserver-xorg", "libdrm2", "xserver-xorg-video-intel"])
