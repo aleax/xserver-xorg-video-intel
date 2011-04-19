@@ -1,3 +1,35 @@
+commit c9fb69cb2502917dfb2828c90802de7766072899
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Apr 17 10:42:05 2011 +0100
+
+    i965/video: We need 150 dwords of space for video state emission
+    
+    (Actually around 131, with additional 10% just for safety.)
+    
+    Reported-by: Modestas Vainius <geromanas@mailas.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=36319
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a51cd83d25f2f9f2107219d5671194f931601244
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Apr 17 10:36:26 2011 +0100
+
+    intel: Beware the unsigned promotion when checking for batch overflows
+    
+    Reported-by: Modestas Vainius <geromanas@mailas.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=36319
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 030aa3d13643a0acb7126fa1fa6c5a8eac134639
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Apr 14 10:25:21 2011 +0100
+
+    NEWS: typo.
+    
+    Spotted too late...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit 0e425b30e12b11dbf51eea1d3366e3372f8b93af
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Thu Apr 14 10:16:03 2011 +0100
