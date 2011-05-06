@@ -63,6 +63,7 @@ Architecture: amd64 i386
 Depends:
  xserver-xorg-video-intel (= ${binary:Version}),
  ${shlibs:Depends},
+ ${misc:Depends}
 Recommends:
  intel-gpu-tools,
 Section: debug
