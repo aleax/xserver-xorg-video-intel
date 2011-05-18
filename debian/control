@@ -46,11 +46,6 @@ Depends:
  ${shlibs:Depends},
  ${misc:Depends},
  ${xviddriver:Depends},
-Recommends:
- intel-gpu-tools,
- apport,
- intel-gpu-tools,
- python,
 Provides:
  ${xviddriver:Provides}
 Description: X.Org X server -- Intel i8xx, i9xx display driver
