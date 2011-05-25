@@ -1,3 +1,42 @@
+xserver-xorg-video-intel (2:2.15.0-3) unstable; urgency=high
+
+  * Temporarily disable xvmc to sidestep the xcb-util mess and move to
+    testing.
+
+ -- Julien Cristau <jcristau@debian.org>  Sat, 14 May 2011 19:00:38 +0200
+
+xserver-xorg-video-intel (2:2.15.0-2) unstable; urgency=low
+
+  * xcb-util was split up in 0.3.8 and libxcb-aux has been merged
+    into libxcb-util, thus update Build-Depends accordingly.
+  * Add ${misc:Depends} to xserver-xorg-video-intel-dbg Depends.
+
+ -- Arnaud Fontaine <arnau@debian.org>  Fri, 06 May 2011 23:53:39 +0900
+
+xserver-xorg-video-intel (2:2.15.0-1) unstable; urgency=low
+
+  * New upstream release.
+  * Merge from upstream master up to c9fb69cb25 to fix crashes with i965
+    and kwin in particular, thanks to Julian Andres Klode and Modestas
+    Vainius for their reports in Debian and upstream (Closes: #622653):
+    - NEWS: typo.
+    - intel: Beware the unsigned promotion when checking for batch overflows
+    - i965/video: We need 150 dwords of space for video state emission
+
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 19 Apr 2011 03:37:23 +0200
+
+xserver-xorg-video-intel (2:2.14.902-1) unstable; urgency=low
+
+  * New upstream snapshot (2.15 rc2).
+  * Apparently, using libXvMC means adding the name of the library (like
+    libI810XvMC.so.1 or libIntelXvMC.so.1) to the libXvMC configuration
+    file (/etc/X11/XvMCConfig). Accordingly, remove extraneous symlinks:
+    - /usr/lib/libI810XvMC.so
+    - /usr/lib/libIntelXvMC.so
+  * Override lintian warning about the libXvMC shared objects.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 10 Apr 2011 23:30:19 +0200
+
 xserver-xorg-video-intel (2:2.14.0-4ubuntu9) oneiric; urgency=low
 
   * debian/apport-gpu-error-intel.py, debian/control, debian/rules:
