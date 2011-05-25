@@ -1,4 +1,2 @@
 usr/lib/xorg/modules/drivers/*.so
 usr/share/man
-
-usr/share/apport/*
