@@ -3,15 +3,6 @@ xserver-xorg-video-intel (2:2.15.0-3ubuntu1) UNRELEASED; urgency=low
   * Merge from Debian unstable, remaining changes:
     - 101_copy-fb.patch
       + Plymouth integration patch
-    - 115_quell_vblank_counter_failed.patch
-      +  Don't fill up Xorg.0.log with
-         "get vblank counter failed: Invalid argument" warnings.
-  	 5 is enough.
-    - 119_disable_relaxed_fencing.path
-      + The relaxed fencing optimization is suspected as the cause for
-        various i915/945 gpu lockup issues. This disables the optimization
-        by default but adds an xorg.conf parameter to let people experiment
-        with it turned on.
     - 120_check_privates.patch
       + Check for null privates pointer on render_dest_picture.
     - debian/xserver-xorg-video-intel.preinst.in:
@@ -27,9 +18,10 @@ xserver-xorg-video-intel (2:2.15.0-3ubuntu1) UNRELEASED; urgency=low
     112_fix_error_in_4c4ad555.patch
     113_remove_broken_max_base_addresses.patch
     114_warnings_cleanup_part_2.patch
+    115_quell_vblank_counter_failed.patch
     117_946gz_isreally_965g.patch
+    119_disable_relaxed_fencing.path
     - all upstream.
-  * Disabled patches 115 and 119 for now, they don't apply and need some work.
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 25 May 2011 17:10:05 +0300
 

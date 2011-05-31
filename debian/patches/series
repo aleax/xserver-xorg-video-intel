@@ -2,6 +2,4 @@
 
 # Ubuntu patches
 101_copy-fb.patch
-#115_quell_vblank_counter_failed.patch
-#119_disable_relaxed_fencing.path
 120_check_privates.patch
