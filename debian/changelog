@@ -1,5 +1,6 @@
 xserver-xorg-video-intel (2:2.15.0-3ubuntu1) UNRELEASED; urgency=low
 
+  [ Timo Aaltonen ]
   * Merge from Debian unstable, remaining changes:
     - 101_copy-fb.patch
       + Plymouth integration patch
@@ -22,8 +23,11 @@ xserver-xorg-video-intel (2:2.15.0-3ubuntu1) UNRELEASED; urgency=low
     117_946gz_isreally_965g.patch
     119_disable_relaxed_fencing.path
     - all upstream.
-
- -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 25 May 2011 17:10:05 +0300
+  [ Christopher James Halse Rogers ]
+  * debian/patches/101_copy-fb.patch
+    - Refresh for new upstream.
+  
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 02 Jun 2011 18:27:35 +1000
 
 xserver-xorg-video-intel (2:2.15.0-3) unstable; urgency=high
 
