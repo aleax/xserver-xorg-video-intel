@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.15.901-1ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.15.901-1ubuntu1) oneiric; urgency=low
 
   [ Robert Hooker ]
   * Merge from debian-experimental, remaining changes:
