@@ -1,5 +1,6 @@
 xserver-xorg-video-intel (2:2.15.901-1ubuntu1) UNRELEASED; urgency=low
 
+  [ Robert Hooker ]
   * Merge from debian-experimental, remaining changes:
     - 101_copy-fb.patch
       + Plymouth integration patch
@@ -12,7 +13,10 @@ xserver-xorg-video-intel (2:2.15.901-1ubuntu1) UNRELEASED; urgency=low
   * Dropped patches:
     - 121_fdo-28798-fix.patch (upstream)
 
- -- Robert Hooker <sarvatt@ubuntu.com>  Mon, 01 Aug 2011 12:20:10 -0400
+  [ Christopher James Halse Rogers ]
+  * Refresh 101_copy-fb.patch.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 09 Aug 2011 10:10:02 +1000
 
 xserver-xorg-video-intel (2:2.15.901-1) experimental; urgency=low
 
