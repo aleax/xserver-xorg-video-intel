@@ -1,3 +1,12 @@
+xserver-xorg-video-intel (2:2.15.0-3~bpo60+1) squeeze-backports; urgency=low
+
+  * Rebuild for squeeze-backports.
+  * Build against Xserver 1.10.
+  * Replace libxcb-util0-dev build-dep with libxcb-aux0-dev, which is what
+    we have in squeeze.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 14 Aug 2011 18:40:30 +0200
+
 xserver-xorg-video-intel (2:2.15.0-3) unstable; urgency=high
 
   * Temporarily disable xvmc to sidestep the xcb-util mess and move to
