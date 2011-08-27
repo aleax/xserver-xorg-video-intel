@@ -1,3 +1,29 @@
+commit 3a81bb6bafdbd37802dab96b8f05173ec6701d7f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 9 09:42:40 2011 +0100
+
+    NEWS: 2.16.0 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f4bbbd1dfe59031f864c7d2bbf7bb0252a3aa6a7
+Author: Edward Sheldrake <ejsheldrake@gmail.com>
+Date:   Mon Aug 1 14:46:08 2011 +0100
+
+    Fix man page formatting
+    
+    Two option sections were not starting at the beginning of a new line.
+
+commit 63518c42234001ec96f638af5732c09079a3d682
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 1 13:36:28 2011 +0100
+
+    dri: Build fix for xserver-1.7.7
+    
+    Back in the olden days before the introduction of dixRegisterPrivate().
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit 7976f5144d42a03ccd027908252a600db2631054
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sat Jul 30 09:21:36 2011 +0100
