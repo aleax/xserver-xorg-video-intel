@@ -1,6 +1,7 @@
 xserver-xorg-video-intel (2:2.16.901-1) UNRELEASED; urgency=low
 
-  * New upstream release candidate.
+  * New upstream release candidate:
+    - A couple of critical stability fixes for SandyBridge and IvyBridge.
   * Add a libpixman-1-dev build-dep: 0.16 is enough for a regular build,
     but enabling SNA would pull 0.23.
   * Pass --with-builderstring. At the moment, it's only needed when
