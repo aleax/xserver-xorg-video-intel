@@ -1,3 +1,9 @@
+xserver-xorg-video-intel (2:2.15.0-3~bpo60+2) squeeze-backports; urgency=low
+
+  * Enable xvmc again.
+
+ -- Cyril Brulebois <kibi@debian.org>  Fri, 02 Dec 2011 16:05:49 +0100
+
 xserver-xorg-video-intel (2:2.15.0-3~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.
