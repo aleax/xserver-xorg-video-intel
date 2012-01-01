@@ -1,8 +1,12 @@
 #!/usr/bin/make -f
 
-# Enable SNA:
+SOURCE_NAME    := $(shell dpkg-parsechangelog | awk -F': ' '/^Source: / {print $$2}')
+SOURCE_VERSION := $(shell dpkg-parsechangelog | awk -F': ' '/^Version: / {print $$2}')
+BUILDER        := $(shell dpkg-parsechangelog | awk -F': ' '/^Maintainer: / {print $$2}')
+
+# Enable SNA, pass builderstring:
 override_dh_auto_configure:
-	dh_auto_configure -- --enable-sna
+	dh_auto_configure -- --enable-sna --with-builderstring="$(SOURCE_NAME) $(SOURCE_VERSION) ($(BUILDER))"
 
 # Install in debian/tmp to retain control through dh_install:
 override_dh_auto_install:
