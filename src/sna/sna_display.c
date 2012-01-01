@@ -749,7 +749,9 @@ sna_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 
 	DBG(("%s(%d, %d)\n", __FUNCTION__, width, height));
 
-	shadow = scrn->pScreen->CreatePixmap(scrn->pScreen, width, height, scrn->depth, 0);
+	shadow = scrn->pScreen->CreatePixmap(scrn->pScreen,
+					     width, height, scrn->depth,
+					     SNA_CREATE_FB);
 	if (!shadow)
 		return NULL;
 
@@ -1142,13 +1144,28 @@ sna_output_dpms(xf86OutputPtr output, int dpms)
 			continue;
 
 		if (!strcmp(props->name, "DPMS")) {
+			/* Record thevalue of the backlight before turning
+			 * off the display, and reset if after turnging it on.
+			 * Order is important as the kernel may record and also
+			 * reset the backlight across DPMS. Hence we need to
+			 * record the value before the kernel modifies it
+			 * and reapply it afterwards.
+			 */
+			if (dpms == DPMSModeOff)
+				sna_output_dpms_backlight(output,
+							  sna_output->dpms_mode,
+							  dpms);
+
 			drmModeConnectorSetProperty(sna->kgem.fd,
 						    sna_output->output_id,
 						    props->prop_id,
 						    dpms);
-			sna_output_dpms_backlight(output,
-						      sna_output->dpms_mode,
-						      dpms);
+
+			if (dpms != DPMSModeOff)
+				sna_output_dpms_backlight(output,
+							  sna_output->dpms_mode,
+							  dpms);
+
 			sna_output->dpms_mode = dpms;
 			drmModeFreeProperty(props);
 			return;
@@ -1689,6 +1706,7 @@ sna_crtc_resize(ScrnInfoPtr scrn, int width, int height)
 
 	if (old_fb_id)
 		drmModeRmFB(sna->kgem.fd, old_fb_id);
+	sna_pixmap_get_bo(old_front)->needs_flush = true;
 	scrn->pScreen->DestroyPixmap(old_front);
 
 	return TRUE;
@@ -1819,9 +1837,6 @@ sna_page_flip(struct sna *sna,
 	count = do_page_flip(sna, data, ref_crtc_hw_id);
 	DBG(("%s: page flipped %d crtcs\n", __FUNCTION__, count));
 	if (count) {
-		bo->cpu_read = bo->cpu_write = false;
-		bo->gpu = true;
-
 		/* Although the kernel performs an implicit flush upon
 		 * page-flipping, marking the bo as requiring a flush
 		 * here ensures that the buffer goes into the active cache

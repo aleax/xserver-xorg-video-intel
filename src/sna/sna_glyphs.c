@@ -79,6 +79,7 @@
 #define NO_GLYPH_CACHE 0
 #define NO_GLYPHS_TO_DST 0
 #define NO_GLYPHS_VIA_MASK 0
+#define NO_SMALL_MASK 0
 #define NO_GLYPHS_SLOW 0
 
 #define CACHE_PICTURE_SIZE 1024
@@ -151,6 +152,9 @@ static Bool realize_glyph_caches(struct sna *sna)
 
 	DBG(("%s\n", __FUNCTION__));
 
+	if (sna->kgem.wedged || !sna->have_render)
+		return TRUE;
+
 	for (i = 0; i < ARRAY_SIZE(formats); i++) {
 		struct sna_glyph_cache *cache = &sna->render.glyph[i];
 		PixmapPtr pixmap;
@@ -170,6 +174,9 @@ static Bool realize_glyph_caches(struct sna *sna)
 					      SNA_CREATE_SCRATCH);
 		if (!pixmap)
 			goto bail;
+
+		/* Prevent the cache from ever being paged out */
+		sna_pixmap(pixmap)->pinned = true;
 
 		component_alpha = NeedsComponent(pPictFormat->format);
 		picture = CreatePicture(0, &pixmap->drawable, pPictFormat,
@@ -642,7 +649,6 @@ static bool
 clear_pixmap(struct sna *sna, PixmapPtr pixmap)
 {
 	struct sna_pixmap *priv = sna_pixmap(pixmap);
-	assert(priv->gpu_only);
 	return sna->render.fill_one(sna, pixmap, priv->gpu_bo, 0,
 				    0, 0,
 				    pixmap->drawable.width,
@@ -711,7 +717,8 @@ glyphs_via_mask(struct sna *sna,
 	}
 
 	component_alpha = NeedsComponent(format->format);
-	if ((uint32_t)width * height * format->depth < 8 * 4096) {
+	if (!NO_SMALL_MASK &&
+	    (uint32_t)width * height * format->depth < 8 * 4096) {
 		pixman_image_t *mask_image;
 		int s;
 
@@ -1023,13 +1030,23 @@ glyphs_fallback(CARD8 op,
 	if (!RegionNotEmpty(&region))
 		return;
 
-	sna_drawable_move_region_to_cpu(dst->pDrawable, &region, true);
-	if (dst->alphaMap)
-		sna_drawable_move_to_cpu(dst->alphaMap->pDrawable, true);
+	if (!sna_drawable_move_region_to_cpu(dst->pDrawable, &region,
+					     MOVE_READ | MOVE_WRITE))
+		return;
+	if (dst->alphaMap &&
+	    !sna_drawable_move_to_cpu(dst->alphaMap->pDrawable,
+				      MOVE_READ | MOVE_WRITE))
+		return;
+
 	if (src->pDrawable) {
-		sna_drawable_move_to_cpu(src->pDrawable, false);
-		if (src->alphaMap)
-			sna_drawable_move_to_cpu(src->alphaMap->pDrawable, false);
+		if (!sna_drawable_move_to_cpu(src->pDrawable,
+					      MOVE_READ))
+			return;
+
+		if (src->alphaMap &&
+		    !sna_drawable_move_to_cpu(src->alphaMap->pDrawable,
+					      MOVE_READ))
+			return;
 	}
 	RegionTranslate(&region, -dst->pDrawable->x, -dst->pDrawable->y);
 
@@ -1089,7 +1106,6 @@ glyphs_fallback(CARD8 op,
 			GlyphPtr g = *glyphs++;
 			PicturePtr picture;
 			pixman_image_t *glyph_image;
-			int dx, dy;
 
 			if (g->info.width == 0 || g->info.height == 0)
 				goto next_glyph;
@@ -1105,7 +1121,7 @@ glyphs_fallback(CARD8 op,
 			if (mask_format) {
 				DBG(("%s: glyph+(%d,%d) to mask (%d, %d)x(%d, %d)\n",
 				     __FUNCTION__,
-				     dx,dy,
+				     dx, dy,
 				     x - g->info.x,
 				     y - g->info.y,
 				     g->info.width,
@@ -1204,19 +1220,14 @@ sna_glyphs(CARD8 op,
 		goto fallback;
 	}
 
-	if (!is_gpu(dst->pDrawable)) {
-		DBG(("%s: fallback -- no destination bo\n", __FUNCTION__));
-		goto fallback;
-	}
-
 	if (too_small(dst->pDrawable) && !picture_is_gpu(src)) {
 		DBG(("%s: fallback -- too small (%dx%d)\n",
 		     __FUNCTION__, dst->pDrawable->width, dst->pDrawable->height));
 		goto fallback;
 	}
 
-	if (dst->alphaMap || src->alphaMap) {
-		DBG(("%s: fallback -- alpha maps\n", __FUNCTION__));
+	if (dst->alphaMap) {
+		DBG(("%s: fallback -- dst alpha map\n", __FUNCTION__));
 		goto fallback;
 	}
 

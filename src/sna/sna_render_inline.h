@@ -52,7 +52,7 @@ static inline int batch_space(struct sna *sna)
 
 static inline void batch_emit(struct sna *sna, uint32_t dword)
 {
-	assert(sna->kgem.nbatch < sna->kgem.surface);
+	assert(sna->kgem.nbatch + KGEM_BATCH_RESERVED < sna->kgem.surface);
 	sna->kgem.batch[sna->kgem.nbatch++] = dword;
 }
 
@@ -70,28 +70,27 @@ static inline Bool
 is_gpu(DrawablePtr drawable)
 {
 	struct sna_pixmap *priv = sna_pixmap_from_drawable(drawable);
-	return priv && priv->gpu_bo;
+
+	if (priv == NULL)
+		return false;
+
+	if (priv->gpu_damage)
+		return true;
+
+	return priv->cpu_bo && kgem_bo_is_busy(priv->cpu_bo);
 }
 
 static inline Bool
 is_cpu(DrawablePtr drawable)
 {
 	struct sna_pixmap *priv = sna_pixmap_from_drawable(drawable);
-	return !priv || priv->gpu_bo == NULL;
-}
-
-static inline Bool
-is_dirty_gpu(DrawablePtr drawable)
-{
-	struct sna_pixmap *priv = sna_pixmap_from_drawable(drawable);
-	return priv && priv->gpu_bo && priv->gpu_damage;
+	return !priv || priv->cpu_damage != NULL;
 }
 
 static inline Bool
 too_small(DrawablePtr drawable)
 {
-	return ((uint32_t)drawable->width * drawable->height * drawable->bitsPerPixel <= 8*4096) &&
-		!is_dirty_gpu(drawable);
+	return ((uint32_t)drawable->width * drawable->height * drawable->bitsPerPixel <= 8*4096) && !is_gpu(drawable);
 }
 
 static inline Bool
@@ -132,7 +131,15 @@ sna_render_reduce_damage(struct sna_composite_op *op,
 {
 	BoxRec r;
 
-	if (width == 0 || height == 0 || op->damage == NULL)
+	if (op->damage == NULL || *op->damage == NULL)
+		return;
+
+	if ((*op->damage)->mode == DAMAGE_ALL) {
+		op->damage = NULL;
+		return;
+	}
+
+	if (width == 0 || height == 0)
 		return;
 
 	r.x1 = dst_x + op->dst.x;

@@ -481,7 +481,6 @@ sna_video_copy_data(struct sna *sna,
 	else
 		sna_copy_packed_data(video, frame, buf, dst);
 
-	munmap(dst, frame->bo->size);
 	return TRUE;
 }
 
@@ -492,6 +491,9 @@ void sna_video_init(struct sna *sna, ScreenPtr screen)
 	int num_adaptors;
 	int prefer_overlay =
 	    xf86ReturnOptValBool(sna->Options, OPTION_PREFER_OVERLAY, FALSE);
+
+	if (!xf86LoaderCheckSymbol("xf86XVListGenericAdaptors"))
+		return;
 
 	num_adaptors = xf86XVListGenericAdaptors(sna->scrn, &adaptors);
 	newAdaptors =

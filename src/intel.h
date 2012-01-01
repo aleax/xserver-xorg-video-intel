@@ -63,7 +63,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "xorg-server.h"
 #include <pciaccess.h>
 
-#include "xf86drm.h"
 #define _XF86DRI_SERVER_
 #include "dri2.h"
 #include "intel_bufmgr.h"
@@ -279,6 +278,7 @@ typedef struct intel_screen_private {
 	struct list flush_pixmaps;
 	struct list in_flight;
 	drm_intel_bo *wa_scratch_bo;
+	OsTimerPtr cache_expire;
 
 	/* For Xvideo */
 	Bool use_overlay;
@@ -316,6 +316,7 @@ typedef struct intel_screen_private {
 	void (*batch_commit_notify) (struct intel_screen_private *intel);
 
 	struct _UxaDriver *uxa_driver;
+	int uxa_flags;
 	Bool need_sync;
 	int accel_pixmap_offset_alignment;
 	int accel_max_x;
@@ -541,7 +542,6 @@ int intel_crtc_to_pipe(xf86CrtcPtr crtc);
 unsigned long intel_get_fence_size(intel_screen_private *intel, unsigned long size);
 unsigned long intel_get_fence_pitch(intel_screen_private *intel, unsigned long pitch,
 				   uint32_t tiling_mode);
-void intel_set_gem_max_sizes(ScrnInfoPtr scrn);
 
 drm_intel_bo *intel_allocate_framebuffer(ScrnInfoPtr scrn,
 					int w, int h, int cpp,
@@ -720,8 +720,6 @@ static inline Bool pixmap_is_scanout(PixmapPtr pixmap)
 
 	return pixmap == screen->GetScreenPixmap(screen);
 }
-
-const OptionInfoRec *intel_uxa_available_options(int chipid, int busid);
 
 Bool intel_uxa_init(ScreenPtr pScreen);
 Bool intel_uxa_create_screen_resources(ScreenPtr pScreen);

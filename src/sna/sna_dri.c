@@ -127,7 +127,7 @@ static struct kgem_bo *sna_pixmap_set_dri(struct sna *sna,
 {
 	struct sna_pixmap *priv;
 
-	priv = sna_pixmap_force_to_gpu(pixmap);
+	priv = sna_pixmap_force_to_gpu(pixmap, MOVE_READ | MOVE_WRITE);
 	if (priv == NULL)
 		return NULL;
 
@@ -295,8 +295,6 @@ static void _sna_dri_destroy_buffer(struct sna *sna, DRI2Buffer2Ptr buffer)
 			screen->DestroyPixmap(private->pixmap);
 		}
 
-		private->bo->gpu =
-			private->bo->needs_flush || private->bo->rq != NULL;
 		private->bo->flush = 0;
 		kgem_bo_destroy(&sna->kgem, private->bo);
 
@@ -319,9 +317,6 @@ static void damage(PixmapPtr pixmap, RegionPtr region)
 	struct sna_pixmap *priv;
 
 	priv = sna_pixmap(pixmap);
-	if (priv->gpu_only)
-		return;
-
 	if (region == NULL) {
 damage_all:
 		sna_damage_all(&priv->gpu_damage,
@@ -343,17 +338,15 @@ damage_all:
 
 static void set_bo(PixmapPtr pixmap, struct kgem_bo *bo)
 {
-	struct sna_pixmap *priv;
+	struct sna *sna = to_sna_from_pixmap(pixmap);
+	struct sna_pixmap *priv = sna_pixmap(pixmap);
 
-	priv = sna_pixmap(pixmap);
-	if (!priv->gpu_only) {
-		sna_damage_all(&priv->gpu_damage,
-				pixmap->drawable.width,
-				pixmap->drawable.height);
-		sna_damage_destroy(&priv->cpu_damage);
-	}
-	assert(priv->gpu_bo->refcnt > 1);
-	priv->gpu_bo->refcnt--;
+	sna_damage_all(&priv->gpu_damage,
+		       pixmap->drawable.width,
+		       pixmap->drawable.height);
+	sna_damage_destroy(&priv->cpu_damage);
+
+	kgem_bo_destroy(&sna->kgem, priv->gpu_bo);
 	priv->gpu_bo = ref(bo);
 }
 
@@ -428,6 +421,9 @@ sna_dri_copy(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		 * as well).
 		 */
 		kgem_set_mode(&sna->kgem, KGEM_RENDER);
+	} else if (sna->kgem.mode == KGEM_NONE) {
+		/* Otherwise employ the BLT unless it means a context switch */
+		_kgem_set_mode(&sna->kgem, KGEM_BLT);
 	}
 
 	damage(pixmap, region);
@@ -728,10 +724,10 @@ sna_dri_page_flip(struct sna *sna, struct sna_dri_frame_event *info)
 	if (info->count == 0)
 		return FALSE;
 
-	set_bo(sna->front, bo);
-
 	info->old_front.name = info->front->name;
 	info->old_front.bo = get_private(info->front)->bo;
+
+	set_bo(sna->front, bo);
 
 	info->front->name = info->back->name;
 	get_private(info->front)->bo = bo;
