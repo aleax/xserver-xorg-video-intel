@@ -2,3 +2,4 @@
 
 # Ubuntu patches
 101_copy-fb.patch
+103_fix_uxa_fill_spans.patch
