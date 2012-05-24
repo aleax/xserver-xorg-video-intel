@@ -1049,7 +1049,7 @@ static Bool sna_pm_event(int scrnIndex, pmEvent event, Bool undo)
 	return TRUE;
 }
 
-void sna_init_scrn(ScrnInfoPtr scrn, int entity_num)
+Bool sna_init_scrn(ScrnInfoPtr scrn, int entity_num)
 {
 	EntityInfoPtr entity;
 
@@ -1083,8 +1083,13 @@ void sna_init_scrn(ScrnInfoPtr scrn, int entity_num)
 	xf86SetEntitySharable(scrn->entityList[0]);
 
 	entity = xf86GetEntityInfo(entity_num);
+	if (!entity)
+		return FALSE;
+
 	xf86SetEntityInstanceForScreen(scrn,
 				       entity->index,
 				       xf86GetNumEntityInstances(entity->index)-1);
 	free(entity);
+
+	return TRUE;
 }
