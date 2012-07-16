@@ -8,10 +8,8 @@ AM_CFLAGS = @CWARNFLAGS@ @XORG_CFLAGS@ @DRM_CFLAGS@ @DRI_CFLAGS@ @PCIACCESS_CFLA
 	    $(NULL)
 
 liblegacy_i810_la_SOURCES = \
-         i810_accel.c \
          i810_common.h \
          i810_cursor.c \
-         i810_dga.c \
          i810_driver.c \
          i810.h \
          i810_memory.c \
@@ -19,6 +17,16 @@ liblegacy_i810_la_SOURCES = \
          i810_ring.h \
          i810_video.c \
          i810_wmark.c
+
+if XAA
+liblegacy_i810_la_SOURCES += \
+         i810_accel.c
+endif
+
+if DGA
+liblegacy_i810_la_SOURCES += \
+         i810_dga.c
+endif
 
 if DRI
 liblegacy_i810_la_SOURCES +=\

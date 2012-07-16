@@ -42,7 +42,10 @@ NULL:=#
 
 intel_drv_la_SOURCES = \
 	intel_list.h \
+	intel_options.h \
+	intel_options.c \
 	intel_module.c \
+	compat-api.h \
 	$(NULL)
 
 if UXA
