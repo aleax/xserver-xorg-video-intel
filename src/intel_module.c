@@ -28,9 +28,8 @@
 #include "config.h"
 #endif
 
-#include <xf86.h>
 #include <xf86_OSproc.h>
-#include <xf86cmap.h>
+#include <xf86Parser.h>
 #include <xf86drmMode.h>
 
 #include <xorgVersion.h>
@@ -41,10 +40,15 @@
 
 #include "common.h"
 #include "intel_driver.h"
+#include "intel_options.h"
 #include "legacy/legacy.h"
 #include "sna/sna_module.h"
 
 static struct intel_device_info *chipset_info;
+
+static const struct intel_device_info intel_generic_info = {
+	.gen = 0,
+};
 
 static const struct intel_device_info intel_i81x_info = {
 	.gen = 10,
@@ -153,10 +157,12 @@ SymTabRec *intel_chipsets = (SymTabRec *) _intel_chipsets;
     { 0x8086, (d), PCI_MATCH_ANY, PCI_MATCH_ANY, 0, 0, (intptr_t)(i) }
 
 static const struct pci_id_match intel_device_match[] = {
+#if !KMS_ONLY
 	INTEL_DEVICE_MATCH (PCI_CHIP_I810, &intel_i81x_info ),
 	INTEL_DEVICE_MATCH (PCI_CHIP_I810_DC100, &intel_i81x_info ),
 	INTEL_DEVICE_MATCH (PCI_CHIP_I810_E, &intel_i81x_info ),
 	INTEL_DEVICE_MATCH (PCI_CHIP_I815, &intel_i81x_info ),
+#endif
 
 	INTEL_DEVICE_MATCH (PCI_CHIP_I830_M, &intel_i830_info ),
 	INTEL_DEVICE_MATCH (PCI_CHIP_845_G, &intel_i845_info ),
@@ -213,6 +219,7 @@ static const struct pci_id_match intel_device_match[] = {
 	INTEL_DEVICE_MATCH (PCI_CHIP_IVYBRIDGE_S_GT1, &intel_ivybridge_info ),
 	INTEL_DEVICE_MATCH (PCI_CHIP_IVYBRIDGE_S_GT2, &intel_ivybridge_info ),
 
+	INTEL_DEVICE_MATCH (PCI_MATCH_ANY, &intel_generic_info ),
 	{ 0, 0, 0 },
 };
 
@@ -223,6 +230,7 @@ void intel_detect_chipset(ScrnInfoPtr scrn,
 	int i;
 
 	chipset->info = chipset_info;
+	chipset->name = NULL;
 
 	for (i = 0; intel_chipsets[i].name != NULL; i++) {
 		if (DEVICE_ID(pci) == intel_chipsets[i].token) {
@@ -230,12 +238,14 @@ void intel_detect_chipset(ScrnInfoPtr scrn,
 			break;
 		}
 	}
-	if (intel_chipsets[i].name == NULL) {
-		chipset->name = "unknown chipset";
+	if (chipset->name == NULL) {
+		xf86DrvMsg(scrn->scrnIndex, X_WARNING, "unknown chipset\n");
+		chipset->name = "unknown";
+	} else {
+		xf86DrvMsg(scrn->scrnIndex, X_INFO,
+			   "Integrated Graphics Chipset: Intel(R) %s\n",
+			   chipset->name);
 	}
-
-	xf86DrvMsg(scrn->scrnIndex, X_INFO,
-		   "Integrated Graphics Chipset: Intel(R) %s\n", chipset->name);
 }
 
 /*
@@ -291,6 +301,44 @@ static Bool has_kernel_mode_setting(struct pci_device *dev)
 	return ret == 0;
 }
 
+extern XF86ConfigPtr xf86configptr;
+
+static XF86ConfDevicePtr
+_xf86findDriver(const char *ident, XF86ConfDevicePtr p)
+{
+	while (p) {
+		if (p->dev_driver && xf86nameCompare(ident, p->dev_driver) == 0)
+			return p;
+
+		p = p->list.next;
+	}
+
+	return NULL;
+}
+
+static enum accel_method { UXA, SNA } get_accel_method(void)
+{
+	enum accel_method accel_method = DEFAULT_ACCEL_METHOD;
+	XF86ConfDevicePtr dev;
+
+	dev = _xf86findDriver("intel", xf86configptr->conf_device_lst);
+	if (dev && dev->dev_option_lst) {
+		const char *s;
+
+		s = xf86FindOptionValue(dev->dev_option_lst, "AccelMethod");
+		if (s ) {
+			if (strcasecmp(s, "sna") == 0)
+				accel_method = SNA;
+			else if (strcasecmp(s, "uxa") == 0)
+				accel_method = UXA;
+			else if (strcasecmp(s, "glamor") == 0)
+				accel_method = UXA;
+		}
+	}
+
+	return accel_method;
+}
+
 /*
  * intel_pci_probe --
  *
@@ -337,34 +385,35 @@ static Bool intel_pci_probe(DriverPtr		driver,
 
 	scrn = xf86ConfigPciEntity(NULL, 0, entity_num, intel_pci_chipsets,
 				   NULL, NULL, NULL, NULL, NULL);
-	if (scrn != NULL) {
-		scrn->driverVersion = INTEL_VERSION;
-		scrn->driverName = INTEL_DRIVER_NAME;
-		scrn->name = INTEL_NAME;
-		scrn->Probe = NULL;
+	if (scrn == NULL)
+		return FALSE;
 
-		switch (DEVICE_ID(device)) {
+	scrn->driverVersion = INTEL_VERSION;
+	scrn->driverName = INTEL_DRIVER_NAME;
+	scrn->name = INTEL_NAME;
+	scrn->Probe = NULL;
+
 #if !KMS_ONLY
-		case PCI_CHIP_I810:
-		case PCI_CHIP_I810_DC100:
-		case PCI_CHIP_I810_E:
-		case PCI_CHIP_I815:
-			lg_i810_init(scrn);
-			break;
+	switch (DEVICE_ID(device)) {
+	case PCI_CHIP_I810:
+	case PCI_CHIP_I810_DC100:
+	case PCI_CHIP_I810_E:
+	case PCI_CHIP_I815:
+		return lg_i810_init(scrn);
+	}
 #endif
 
-		default:
+	switch (get_accel_method()) {
 #if USE_SNA
-			sna_init_scrn(scrn, entity_num);
-#elif USE_UXA
-			intel_init_scrn(scrn);
-#else
-			scrn = NULL;
+	case SNA: return sna_init_scrn(scrn, entity_num);
 #endif
-			break;
-		}
+
+#if USE_UXA
+	case UXA: return intel_init_scrn(scrn);
+#endif
+
+	default: return FALSE;
 	}
-	return scrn != NULL;
 }
 
 #ifdef XFree86LOADER
@@ -397,13 +446,7 @@ intel_available_options(int chipid, int busid)
 #endif
 
 	default:
-#if USE_SNA
-		return sna_available_options(chipid, busid);
-#elif USE_UXA
-		return intel_uxa_available_options(chipid, busid);
-#else
-		return NULL;
-#endif
+		return intel_options;
 	}
 }
 
