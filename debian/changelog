@@ -2,6 +2,7 @@ xserver-xorg-video-intel (2:2.20-1) UNRELEASED; urgency=low
 
   * New upstream release:
     - First official release with sna
+  * Drop upstreamed 101_copy-fb.patch
 
  -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 16:21:28 +0200
 
