@@ -521,14 +521,10 @@ static uint32_t gen5_get_card_format(PictFormat format)
 		return GEN5_SURFACEFORMAT_B10G10R10A2_UNORM;
 	case PICT_x2r10g10b10:
 		return GEN5_SURFACEFORMAT_B10G10R10X2_UNORM;
-	case PICT_a2b10g10r10:
-		return GEN5_SURFACEFORMAT_R10G10B10A2_UNORM;
 	case PICT_r8g8b8:
 		return GEN5_SURFACEFORMAT_R8G8B8_UNORM;
 	case PICT_r5g6b5:
 		return GEN5_SURFACEFORMAT_B5G6R5_UNORM;
-	case PICT_x1r5g5b5:
-		return GEN5_SURFACEFORMAT_B5G5R5X1_UNORM;
 	case PICT_a1r5g5b5:
 		return GEN5_SURFACEFORMAT_B5G5R5A1_UNORM;
 	case PICT_a8:
@@ -730,7 +726,7 @@ gen5_bind_bo(struct sna *sna,
 	/* After the first bind, we manage the cache domains within the batch */
 	if (is_dst) {
 		domains = I915_GEM_DOMAIN_RENDER << 16 | I915_GEM_DOMAIN_RENDER;
-		kgem_bo_mark_dirty(bo);
+		kgem_bo_mark_dirty(&sna->kgem, bo);
 	} else
 		domains = I915_GEM_DOMAIN_SAMPLER << 16;
 
@@ -1476,7 +1472,7 @@ gen5_emit_state(struct sna *sna,
 	if (kgem_bo_is_dirty(op->src.bo) || kgem_bo_is_dirty(op->mask.bo)) {
 		OUT_BATCH(MI_FLUSH);
 		kgem_clear_dirty(&sna->kgem);
-		kgem_bo_mark_dirty(op->dst.bo);
+		kgem_bo_mark_dirty(&sna->kgem, op->dst.bo);
 	}
 }
 
@@ -2733,6 +2729,31 @@ gen5_render_composite_spans_done(struct sna *sna,
 }
 
 static bool
+gen5_check_composite_spans(struct sna *sna,
+			   uint8_t op, PicturePtr src, PicturePtr dst,
+			   int16_t width, int16_t height, unsigned flags)
+{
+	if ((flags & COMPOSITE_SPANS_RECTILINEAR) == 0)
+		return false;
+
+	if (op >= ARRAY_SIZE(gen5_blend_op))
+		return false;
+
+	if (gen5_composite_fallback(sna, src, NULL, dst))
+		return false;
+
+	if (need_tiling(sna, width, height)) {
+		if (!is_gpu(dst->pDrawable)) {
+			DBG(("%s: fallback, tiled operation not on GPU\n",
+			     __FUNCTION__));
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool
 gen5_render_composite_spans(struct sna *sna,
 			    uint8_t op,
 			    PicturePtr src,
@@ -2746,25 +2767,11 @@ gen5_render_composite_spans(struct sna *sna,
 	DBG(("%s: %dx%d with flags=%x, current mode=%d\n", __FUNCTION__,
 	     width, height, flags, sna->kgem.ring));
 
-	if ((flags & COMPOSITE_SPANS_RECTILINEAR) == 0)
-		return false;
-
-	if (op >= ARRAY_SIZE(gen5_blend_op))
-		return false;
-
-	if (gen5_composite_fallback(sna, src, NULL, dst))
-		return false;
+	assert(gen5_check_composite_spans(sna, op, src, dst, width, height, flags));
 
 	if (need_tiling(sna, width, height)) {
 		DBG(("%s: tiling, operation (%dx%d) too wide for pipeline\n",
 		     __FUNCTION__, width, height));
-
-		if (!is_gpu(dst->pDrawable)) {
-			DBG(("%s: fallback, tiled operation not on GPU\n",
-			     __FUNCTION__));
-			return false;
-		}
-
 		return sna_tiling_composite_spans(op, src, dst,
 						  src_x, src_y, dst_x, dst_y,
 						  width, height, flags, tmp);
@@ -3928,6 +3935,7 @@ bool gen5_render_init(struct sna *sna)
 
 	sna->render.composite = gen5_render_composite;
 #if !NO_COMPOSITE_SPANS
+	sna->render.check_composite_spans = gen5_check_composite_spans;
 	sna->render.composite_spans = gen5_render_composite_spans;
 #endif
 	sna->render.video = gen5_render_video;

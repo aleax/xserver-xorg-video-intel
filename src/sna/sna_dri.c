@@ -71,7 +71,6 @@ struct sna_dri_frame_event {
 	DrawablePtr draw;
 	ClientPtr client;
 	enum frame_event_type type;
-	unsigned frame;
 	int pipe;
 	int count;
 
@@ -154,6 +153,10 @@ static struct kgem_bo *sna_pixmap_set_dri(struct sna *sna,
 {
 	struct sna_pixmap *priv;
 	int tiling;
+
+	priv = sna_pixmap(pixmap);
+	if (priv == NULL || priv->shm)
+		return NULL;
 
 	priv = sna_pixmap_force_to_gpu(pixmap, MOVE_READ | MOVE_WRITE);
 	if (priv == NULL)
@@ -426,6 +429,7 @@ static void set_bo(PixmapPtr pixmap, struct kgem_bo *bo)
 static void sna_dri_select_mode(struct sna *sna, struct kgem_bo *src, bool sync)
 {
 	struct drm_i915_gem_busy busy;
+	int mode;
 
 	if (sna->kgem.gen < 60)
 		return;
@@ -463,11 +467,14 @@ static void sna_dri_select_mode(struct sna *sna, struct kgem_bo *src, bool sync)
 	 * our operation on the same ring, and ideally on the same
 	 * ring as we will flip from (which should be the RENDER ring
 	 * as well).
+	 *
+	 * The ultimate question is whether preserving the ring outweighs
+	 * the cost of the query.
 	 */
-	if ((busy.busy & 0xffff0000) == 0 || busy.busy & (1 << 16))
-		kgem_set_mode(&sna->kgem, KGEM_RENDER);
-	else
-		kgem_set_mode(&sna->kgem, KGEM_BLT);
+	mode = KGEM_RENDER;
+	if (busy.busy & (1 << 16))
+		mode = KGEM_BLT;
+	_kgem_set_mode(&sna->kgem, mode);
 }
 
 static struct kgem_bo *
@@ -1014,6 +1021,12 @@ can_exchange(struct sna * sna,
 		return false;
 	}
 
+	if (sna_pixmap_get_buffer(pixmap) != front) {
+		DBG(("%s: no, DRI2 drawable is no longer attached\n",
+		     __FUNCTION__));
+		return false;
+	}
+
 	return true;
 }
 
@@ -1046,13 +1059,21 @@ sna_dri_exchange_buffers(DrawablePtr draw,
 	back_bo = get_private(back)->bo;
 	front_bo = get_private(front)->bo;
 
-	assert(pixmap->drawable.height * back_bo->pitch <= kgem_bo_size(back_bo));
-	assert(pixmap->drawable.height * front_bo->pitch <= kgem_bo_size(front_bo));
-
-	DBG(("%s: exchange front=%d/%d and back=%d/%d\n",
+	DBG(("%s: exchange front=%d/%d and back=%d/%d, pixmap=%ld %x%d\n",
 	     __FUNCTION__,
 	     front_bo->handle, front->name,
-	     back_bo->handle, back->name));
+	     back_bo->handle, back->name,
+	     pixmap->drawable.serialNumber,
+	     pixmap->drawable.width,
+	     pixmap->drawable.height));
+
+	DBG(("%s: back_bo pitch=%d, size=%d\n",
+	     __FUNCTION__, back_bo->pitch, kgem_bo_size(back_bo)));
+	DBG(("%s: front_bo pitch=%d, size=%d\n",
+	     __FUNCTION__, front_bo->pitch, kgem_bo_size(front_bo)));
+
+	assert(pixmap->drawable.height * back_bo->pitch <= kgem_bo_size(back_bo));
+	assert(pixmap->drawable.height * front_bo->pitch <= kgem_bo_size(front_bo));
 
 	set_bo(pixmap, back_bo);
 
@@ -1278,18 +1299,6 @@ static void sna_dri_flip_event(struct sna *sna,
 	/* We assume our flips arrive in order, so we don't check the frame */
 	switch (flip->type) {
 	case DRI2_FLIP:
-		/* Deliver cached msc, ust from reference crtc */
-		/* Check for too small vblank count of pageflip completion,
-		 * taking wraparound * into account. This usually means some
-		 * defective kms pageflip completion, causing wrong (msc, ust)
-		 * return values and possible visual corruption.
-		 */
-		if (flip->fe_frame < flip->frame &&
-		    flip->frame - flip->fe_frame < 5) {
-			/* All-0 values signal timestamping failure. */
-			flip->fe_frame = flip->fe_tv_sec = flip->fe_tv_usec = 0;
-		}
-
 		DBG(("%s: flip complete\n", __FUNCTION__));
 		DRI2SwapComplete(flip->client, draw,
 				 flip->fe_frame,
@@ -1574,8 +1583,6 @@ sna_dri_schedule_flip(ClientPtr client, DrawablePtr draw, DRI2BufferPtr front,
 			sna_dri_frame_event_info_free(sna, draw, info);
 			return false;
 		}
-
-		info->frame = *target_msc;
 	}
 
 	return true;
@@ -1790,7 +1797,6 @@ sna_dri_schedule_swap(ClientPtr client, DrawablePtr draw, DRI2BufferPtr front,
 		     (int)*target_msc,
 		     (int)divisor));
 
-		info->frame = *target_msc;
 		info->type = DRI2_SWAP;
 
 		vbl.request.type =
@@ -1839,7 +1845,6 @@ sna_dri_schedule_swap(ClientPtr client, DrawablePtr draw, DRI2BufferPtr front,
 		goto blit_fallback;
 
 	*target_msc = vbl.reply.sequence;
-	info->frame = *target_msc;
 	return TRUE;
 
 blit_fallback:
@@ -2080,7 +2085,6 @@ sna_dri_schedule_wait_msc(ClientPtr client, DrawablePtr draw, CARD64 target_msc,
 		if (sna_wait_vblank(sna, &vbl))
 			goto out_free_info;
 
-		info->frame = vbl.reply.sequence;
 		DRI2BlockClient(client, draw);
 		return TRUE;
 	}
@@ -2108,7 +2112,6 @@ sna_dri_schedule_wait_msc(ClientPtr client, DrawablePtr draw, CARD64 target_msc,
 	if (sna_wait_vblank(sna, &vbl))
 		goto out_free_info;
 
-	info->frame = vbl.reply.sequence;
 	DRI2BlockClient(client, draw);
 	return TRUE;
 
@@ -2132,8 +2135,7 @@ bool sna_dri_open(struct sna *sna, ScreenPtr screen)
 
 	if (wedged(sna)) {
 		xf86DrvMsg(sna->scrn->scrnIndex, X_WARNING,
-			   "cannot enable DRI2 whilst the GPU is wedged\n");
-		return false;
+			   "loading DRI2 whilst the GPU is wedged.\n");
 	}
 
 	if (xf86LoaderCheckSymbol("DRI2Version"))

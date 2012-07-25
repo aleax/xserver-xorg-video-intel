@@ -863,7 +863,6 @@ glyphs_via_mask(struct sna *sna,
 		     __FUNCTION__, (unsigned long)format->format,
 		     format->depth, (uint32_t)width*height*format->depth));
 
-upload:
 		pixmap = sna_pixmap_create_upload(screen,
 						  width, height,
 						  format->depth,
@@ -876,10 +875,8 @@ upload:
 						 width, height,
 						 pixmap->devPrivate.ptr,
 						 pixmap->devKind);
-		if (mask_image == NULL) {
-			screen->DestroyPixmap(pixmap);
-			return false;
-		}
+		if (mask_image == NULL)
+			goto err_pixmap;
 
 		memset(pixmap->devPrivate.ptr, 0, pixmap->devKind*height);
 #if HAS_PIXMAN_GLYPHS
@@ -897,10 +894,8 @@ upload:
 				count += list[n].len;
 			if (count > N_STACK_GLYPHS) {
 				pglyphs = malloc (count * sizeof(pixman_glyph_t));
-				if (pglyphs == NULL) {
-					screen->DestroyPixmap(pixmap);
-					return false;
-				}
+				if (pglyphs == NULL)
+					goto err_pixmap;
 			}
 
 			count = 0;
@@ -1021,9 +1016,8 @@ next_image:
 		mask = CreatePicture(0, &pixmap->drawable,
 				     format, CPComponentAlpha,
 				     &component_alpha, serverClient, &error);
-		screen->DestroyPixmap(pixmap);
 		if (!mask)
-			return false;
+			goto err_pixmap;
 
 		ValidatePicture(mask);
 	} else {
@@ -1036,15 +1030,12 @@ next_image:
 		mask = CreatePicture(0, &pixmap->drawable,
 				     format, CPComponentAlpha,
 				     &component_alpha, serverClient, &error);
-		screen->DestroyPixmap(pixmap);
 		if (!mask)
-			return false;
+			goto err_pixmap;
 
 		ValidatePicture(mask);
-		if (!clear_pixmap(sna, pixmap)) {
-			FreePicture(mask, 0);
-			goto upload;
-		}
+		if (!clear_pixmap(sna, pixmap))
+			goto err_mask;
 
 		memset(&tmp, 0, sizeof(tmp));
 		glyph_atlas = NULL;
@@ -1106,8 +1097,7 @@ next_image:
 					if (!ok) {
 						DBG(("%s: fallback -- can not handle PictOpAdd of glyph onto mask!\n",
 						     __FUNCTION__));
-						FreePicture(mask, 0);
-						return false;
+						goto err_mask;
 					}
 
 					glyph_atlas = this_atlas;
@@ -1143,9 +1133,11 @@ next_glyph:
 		      0, 0,
 		      box.x1, box.y1,
 		      width, height);
-
+err_mask:
 	FreePicture(mask, 0);
-	return true;
+err_pixmap:
+	sna_pixmap_destroy(pixmap);
+	return TRUE;
 }
 
 static PictFormatPtr
@@ -1256,6 +1248,44 @@ out:
 	return format;
 }
 
+static bool can_discard_mask(uint8_t op, PicturePtr src, PictFormatPtr mask,
+			     int nlist, GlyphListPtr list, GlyphPtr *glyphs)
+{
+	PictFormatPtr g;
+	uint32_t color;
+
+	if (nlist == 1 && list->len == 1)
+		return true;
+
+	if (!op_is_bounded(op))
+		return false;
+
+	/* No glyphs overlap and we are not performing a mask conversion. */
+	g = glyphs_format(nlist, list, glyphs);
+	if (mask == g)
+		return true;
+
+	/* Otherwise if the glyphs are all bitmaps and we have an
+	 * opaque source we can also render directly to the dst.
+	 */
+	if (g == NULL) {
+		while (nlist--) {
+			if (list->format->depth != 1)
+				return false;
+
+			list++;
+		}
+	} else {
+		if (g->depth != 1)
+			return false;
+	}
+
+	if (!sna_picture_is_solid(src, &color))
+		return false;
+
+	return color >> 24 == 0xff;
+}
+
 #if HAS_PIXMAN_GLYPHS
 static void
 glyphs_fallback(CARD8 op,
@@ -1317,8 +1347,7 @@ glyphs_fallback(CARD8 op,
 	RegionTranslate(&region, -dst->pDrawable->x, -dst->pDrawable->y);
 
 	if (mask_format &&
-	    (op_is_bounded(op) || (nlist == 1 && list->len == 1)) &&
-	    mask_format == glyphs_format(nlist, list, glyphs))
+	    can_discard_mask(op, src, mask_format, nlist, list, glyphs))
 		mask_format = NULL;
 
 	cache = sna->render.glyph_cache;
@@ -1682,8 +1711,7 @@ sna_glyphs(CARD8 op,
 
 	/* Try to discard the mask for non-overlapping glyphs */
 	if (mask && dst->pCompositeClip->data == NULL &&
-	    (op_is_bounded(op) || (nlist == 1 && list->len == 1)) &&
-	    mask == glyphs_format(nlist, list, glyphs)) {
+	    can_discard_mask(op, src, mask, nlist, list, glyphs)) {
 		DBG(("%s: discarding mask\n", __FUNCTION__));
 		if (glyphs_to_dst(sna, op,
 				  src, dst,

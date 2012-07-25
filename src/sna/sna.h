@@ -121,6 +121,7 @@ struct sna_pixmap {
 	uint16_t source_count;
 	uint8_t pinned :1;
 	uint8_t mapped :1;
+	uint8_t shm :1;
 	uint8_t clear :1;
 	uint8_t undamaged :1;
 	uint8_t create :3;
@@ -192,7 +193,6 @@ struct sna {
 #define SNA_FORCE_SHADOW	0x20
 
 	unsigned watch_flush;
-	unsigned flush;
 
 	struct timeval timer_tv;
 	uint32_t timer_expire[NUM_TIMERS];
@@ -200,7 +200,7 @@ struct sna {
 
 	int vblank_interval;
 
-	struct list dirty_pixmaps;
+	struct list flush_pixmaps;
 	struct list active_pixmaps;
 	struct list inactive_clock[2];
 
@@ -327,9 +327,18 @@ to_sna_from_kgem(struct kgem *kgem)
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
+
+#ifndef ALIGN
 #define ALIGN(i,m)	(((i) + (m) - 1) & ~((m) - 1))
+#endif
+
+#ifndef MIN
 #define MIN(a,b)	((a) <= (b) ? (a) : (b))
+#endif
+
+#ifndef MAX
 #define MAX(a,b)	((a) >= (b) ? (a) : (b))
+#endif
 
 extern xf86CrtcPtr sna_covering_crtc(ScrnInfoPtr scrn,
 				     const BoxRec *box,
@@ -407,6 +416,7 @@ PixmapPtr sna_pixmap_create_upload(ScreenPtr screen,
 				   unsigned flags);
 PixmapPtr sna_pixmap_create_unattached(ScreenPtr screen,
 				       int width, int height, int depth);
+void sna_pixmap_destroy(PixmapPtr pixmap);
 
 #define MOVE_WRITE 0x1
 #define MOVE_READ 0x2
@@ -560,7 +570,7 @@ void sna_accel_watch_flush(struct sna *sna, int enable);
 void sna_accel_close(struct sna *sna);
 void sna_accel_free(struct sna *sna);
 
-bool sna_accel_create(struct sna *sna);
+bool sna_accel_create(ScreenPtr screen, struct sna *sna);
 void sna_copy_fbcon(struct sna *sna);
 
 bool sna_composite_create(struct sna *sna);

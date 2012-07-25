@@ -23,7 +23,7 @@
 # Initialize Autoconf
 AC_PREREQ([2.60])
 AC_INIT([xf86-video-intel],
-        [2.20.0],
+        [2.20.1],
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         [xf86-video-intel])
 AC_CONFIG_SRCDIR([Makefile.am])
@@ -247,24 +247,14 @@ if test "x$accel" = xno; then
 	AC_MSG_ERROR([No default acceleration option])
 fi
 
-AC_ARG_ENABLE(cache-level,
-	      AS_HELP_STRING([--enable-cache-level],
-			     [Enable use of cache level ioctl (experimental) [default=no]]),
-	      [CACHE_LEVEL="$enableval"],
-	      [CACHE_LEVEL=no])
-AM_CONDITIONAL(USE_CACHE_LEVEL, test x$CACHE_LEVEL = xyes)
-if test "x$CACHE_LEVEL" = xyes; then
-	AC_DEFINE(USE_CACHE_LEVEL,1,[Assume DRM_I915_GEM_SET_CACHE_LEVEL_IOCTL support])
-fi
-
-AC_ARG_ENABLE(vmap,
-	      AS_HELP_STRING([--enable-vmap],
-			     [Enable use of vmap (experimental) [default=no]]),
-	      [VMAP="$enableval"],
-	      [VMAP=no])
-AM_CONDITIONAL(USE_VMAP, test x$VMAP = xyes)
-if test "x$VMAP" = xyes; then
-	AC_DEFINE(USE_VMAP,1,[Assume VMAP support])
+AC_ARG_ENABLE(userptr,
+	      AS_HELP_STRING([--enable-userptr],
+			     [Enable use of userptr (experimental) [default=no]]),
+	      [USERPTR="$enableval"],
+	      [USERPTR=no])
+AM_CONDITIONAL(USE_USERPTR, test x$USERPTR = xyes)
+if test "x$USERPTR" = xyes; then
+	AC_DEFINE(USE_USERPTR,1,[Assume USERPTR support])
 fi
 
 AC_ARG_ENABLE(async-swap,

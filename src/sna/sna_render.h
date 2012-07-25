@@ -126,18 +126,11 @@ struct sna_composite_op {
 		} gen5;
 
 		struct {
-			int wm_kernel;
-			int nr_surfaces;
-			int nr_inputs;
-			int ve_id;
+			uint32_t flags;
 		} gen6;
 
 		struct {
-			int wm_kernel;
-			int nr_surfaces;
-			int nr_inputs;
-			int ve_id;
-			int sampler;
+			uint32_t flags;
 		} gen7;
 	} u;
 
@@ -201,6 +194,9 @@ struct sna_render {
 			  int16_t w, int16_t h,
 			  struct sna_composite_op *tmp);
 
+	bool (*check_composite_spans)(struct sna *sna, uint8_t op,
+				      PicturePtr dst, PicturePtr src,
+				      int16_t w, int16_t h, unsigned flags);
 	bool (*composite_spans)(struct sna *sna, uint8_t op,
 				PicturePtr dst, PicturePtr src,
 				int16_t src_x, int16_t src_y,
@@ -392,6 +388,7 @@ enum {
 };
 
 struct gen6_render_state {
+	const struct gt_info *info;
 	struct kgem_bo *general_bo;
 
 	uint32_t vs_state;
@@ -618,6 +615,12 @@ sna_get_pixel_from_rgba(uint32_t * pixel,
 
 	return _sna_get_pixel_from_rgba(pixel, red, green, blue, alpha, format);
 }
+
+struct kgem_bo *
+__sna_render_pixmap_bo(struct sna *sna,
+		       PixmapPtr pixmap,
+		       const BoxRec *box,
+		       bool blt);
 
 int
 sna_render_pixmap_bo(struct sna *sna,

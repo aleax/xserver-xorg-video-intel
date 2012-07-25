@@ -82,11 +82,10 @@ struct kgem_bo {
 	uint32_t dirty : 1;
 	uint32_t domain : 2;
 	uint32_t needs_flush : 1;
-	uint32_t vmap : 1;
+	uint32_t snoop : 1;
 	uint32_t io : 1;
 	uint32_t flush : 1;
 	uint32_t scanout : 1;
-	uint32_t sync : 1;
 	uint32_t purged : 1;
 };
 #define DOMAIN_NONE 0
@@ -125,11 +124,10 @@ struct kgem {
 	struct list large;
 	struct list active[NUM_CACHE_BUCKETS][3];
 	struct list inactive[NUM_CACHE_BUCKETS];
-	struct list batch_partials, active_partials;
+	struct list snoop;
+	struct list batch_buffers, active_buffers;
 	struct list requests;
-	struct list sync_list;
 	struct kgem_request *next_request;
-	struct kgem_request *sync;
 
 	struct {
 		struct list inactive[NUM_CACHE_BUCKETS];
@@ -149,15 +147,14 @@ struct kgem {
 	uint32_t need_purge:1;
 	uint32_t need_retire:1;
 	uint32_t need_throttle:1;
-	uint32_t scanout:1;
 	uint32_t busy:1;
 
-	uint32_t has_vmap :1;
+	uint32_t has_userptr :1;
 	uint32_t has_blt :1;
 	uint32_t has_relaxed_fencing :1;
 	uint32_t has_relaxed_delta :1;
 	uint32_t has_semaphores :1;
-	uint32_t has_cache_level :1;
+	uint32_t has_cacheing :1;
 	uint32_t has_llc :1;
 
 	uint32_t can_blt_cpu :1;
@@ -169,7 +166,7 @@ struct kgem {
 	uint32_t max_upload_tile_size, max_copy_tile_size;
 	uint32_t max_gpu_size, max_cpu_size;
 	uint32_t large_object_size, max_object_size;
-	uint32_t partial_buffer_size;
+	uint32_t buffer_size;
 
 	void (*context_switch)(struct kgem *kgem, int new_mode);
 	void (*retire)(struct kgem *kgem);
@@ -191,7 +188,10 @@ struct kgem {
 #define KGEM_RELOC_RESERVED 4
 #define KGEM_EXEC_RESERVED 1
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
 #define KGEM_BATCH_SIZE(K) ((K)->batch_size-KGEM_BATCH_RESERVED)
 #define KGEM_EXEC_SIZE(K) (int)(ARRAY_SIZE((K)->exec)-KGEM_EXEC_RESERVED)
 #define KGEM_RELOC_SIZE(K) (int)(ARRAY_SIZE((K)->reloc)-KGEM_RELOC_RESERVED)
@@ -240,7 +240,6 @@ enum {
 	CREATE_TEMPORARY = 0x20,
 	CREATE_NO_RETIRE = 0x40,
 	CREATE_NO_THROTTLE = 0x40,
-	CREATE_FORCE = 0x80,
 };
 struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 			       int width,
@@ -407,7 +406,6 @@ void kgem_bo_sync__gtt(struct kgem *kgem, struct kgem_bo *bo);
 void *kgem_bo_map__debug(struct kgem *kgem, struct kgem_bo *bo);
 void *kgem_bo_map__cpu(struct kgem *kgem, struct kgem_bo *bo);
 void kgem_bo_sync__cpu(struct kgem *kgem, struct kgem_bo *bo);
-void kgem_bo_set_sync(struct kgem *kgem, struct kgem_bo *bo);
 uint32_t kgem_bo_flink(struct kgem *kgem, struct kgem_bo *bo);
 
 bool kgem_bo_write(struct kgem *kgem, struct kgem_bo *bo,
@@ -417,16 +415,24 @@ int kgem_bo_fenced_size(struct kgem *kgem, struct kgem_bo *bo);
 void kgem_get_tile_size(struct kgem *kgem, int tiling,
 			int *tile_width, int *tile_height, int *tile_size);
 
-static inline int kgem_bo_size(struct kgem_bo *bo)
+static inline int __kgem_buffer_size(struct kgem_bo *bo)
 {
-	assert(!(bo->proxy && bo->io));
+	assert(bo->proxy != NULL);
+	return bo->size.bytes;
+}
+
+static inline int __kgem_bo_size(struct kgem_bo *bo)
+{
+	assert(bo->proxy == NULL);
 	return PAGE_SIZE * bo->size.pages.count;
 }
 
-static inline int kgem_buffer_size(struct kgem_bo *bo)
+static inline int kgem_bo_size(struct kgem_bo *bo)
 {
-	assert(bo->proxy && bo->io);
-	return bo->size.bytes;
+	if (bo->proxy)
+		return __kgem_buffer_size(bo);
+	else
+		return __kgem_bo_size(bo);
 }
 
 static inline bool kgem_bo_blt_pitch_is_ok(struct kgem *kgem,
@@ -497,6 +503,12 @@ static inline bool kgem_bo_can_map(struct kgem *kgem, struct kgem_bo *bo)
 	return kgem_bo_size(bo) <= kgem->aperture_mappable / 4;
 }
 
+static inline bool kgem_bo_is_snoop(struct kgem_bo *bo)
+{
+	while (bo->proxy)
+		bo = bo->proxy;
+	return bo->snoop;
+}
 
 static inline bool kgem_bo_is_busy(struct kgem_bo *bo)
 {
@@ -522,13 +534,16 @@ static inline bool kgem_bo_is_dirty(struct kgem_bo *bo)
 	return bo->dirty;
 }
 
-static inline void kgem_bo_mark_dirty(struct kgem_bo *bo)
+static inline void kgem_bo_mark_dirty(struct kgem *kgem, struct kgem_bo *bo)
 {
-	DBG(("%s: handle=%d\n", __FUNCTION__, bo->handle));
-	bo->dirty = true;
-}
+	if (bo->dirty)
+		return;
 
-void kgem_sync(struct kgem *kgem);
+	DBG(("%s: handle=%d\n", __FUNCTION__, bo->handle));
+
+	bo->needs_flush = bo->dirty = true;
+	list_move(&bo->request, &kgem->next_request->buffers);
+}
 
 #define KGEM_BUFFER_WRITE	0x1
 #define KGEM_BUFFER_INPLACE	0x2
