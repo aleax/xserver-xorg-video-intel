@@ -267,7 +267,11 @@ extern Bool I810CleanupDma(ScrnInfoPtr pScrn);
 #define I810REGPTR(p) (&(I810PTR(p)->ModeReg))
 
 extern Bool I810CursorInit(ScreenPtr pScreen);
+#ifdef HAVE_XAA_H
 extern Bool I810AccelInit(ScreenPtr pScreen);
+#else
+static inline  Bool I810AccelInit(ScreenPtr pScreen) { return TRUE; }
+#endif
 extern void I810SetPIOAccess(I810Ptr pI810);
 extern void I810SetMMIOAccess(I810Ptr pI810);
 extern unsigned int I810CalcWatermark(ScrnInfoPtr pScrn, double freq,
@@ -310,7 +314,6 @@ extern void I810SelectBuffer(ScrnInfoPtr pScrn, int buffer);
 
 extern void I810RefreshRing(ScrnInfoPtr pScrn);
 extern void I810EmitFlush(ScrnInfoPtr pScrn);
-extern void I810EmitInvarientState(ScrnInfoPtr pScrn);
 
 extern Bool I810DGAInit(ScreenPtr pScreen);
 
@@ -318,5 +321,8 @@ extern void I810InitVideo(ScreenPtr pScreen);
 extern void I810InitMC(ScreenPtr pScreen);
 
 extern const OptionInfoRec *I810AvailableOptions(int chipid, int busid);
+
+extern const int I810CopyROP[16];
+const int I810PatternROP[16];
 
 #endif /* _I810_H_ */

@@ -91,11 +91,19 @@ no_render_composite(struct sna *sna,
 			      dst_x, dst_y,
 			      width, height,
 			      tmp))
-		return TRUE;
+		return true;
 
-	return FALSE;
+	return false;
 	(void)mask_x;
 	(void)mask_y;
+}
+
+static bool
+no_render_check_composite_spans(struct sna *sna,
+				uint8_t op, PicturePtr src, PicturePtr dst,
+				int16_t width,  int16_t height, unsigned flags)
+{
+	return false;
 }
 
 static bool
@@ -107,7 +115,7 @@ no_render_copy_boxes(struct sna *sna, uint8_t alu,
 	DBG(("%s (n=%d)\n", __FUNCTION__, n));
 
 	if (!sna_blt_compare_depth(&src->drawable, &dst->drawable))
-		return FALSE;
+		return false;
 
 	return sna_blt_copy_boxes(sna, alu,
 				  src_bo, src_dx, src_dy,
@@ -128,9 +136,9 @@ no_render_copy(struct sna *sna, uint8_t alu,
 	    sna_blt_copy(sna, alu,
 			 src_bo, dst_bo, dst->drawable.bitsPerPixel,
 			 tmp))
-		return TRUE;
+		return true;
 
-	return FALSE;
+	return false;
 }
 
 static bool
@@ -160,7 +168,7 @@ no_render_fill_boxes(struct sna *sna,
 	}
 
 	if (op != PictOpSrc)
-		return FALSE;
+		return false;
 
 	if (alu == GXcopy &&
 	    !sna_get_pixel_from_rgba(&pixel,
@@ -169,7 +177,7 @@ no_render_fill_boxes(struct sna *sna,
 				     color->blue,
 				     color->alpha,
 				     format))
-		return FALSE;
+		return false;
 
 	return sna_blt_fill_boxes(sna, alu,
 				  dst_bo, dst->drawable.bitsPerPixel,
@@ -267,6 +275,7 @@ void no_render_init(struct sna *sna)
 	render->vertex_size = ARRAY_SIZE(render->vertex_data);
 
 	render->composite = no_render_composite;
+	render->check_composite_spans = no_render_check_composite_spans;
 
 	render->copy_boxes = no_render_copy_boxes;
 	render->copy = no_render_copy;
@@ -288,7 +297,7 @@ void no_render_init(struct sna *sna)
 }
 
 static struct kgem_bo *
-use_cpu_bo(struct sna *sna, PixmapPtr pixmap, const BoxRec *box)
+use_cpu_bo(struct sna *sna, PixmapPtr pixmap, const BoxRec *box, bool blt)
 {
 	struct sna_pixmap *priv;
 
@@ -298,6 +307,12 @@ use_cpu_bo(struct sna *sna, PixmapPtr pixmap, const BoxRec *box)
 	priv = sna_pixmap(pixmap);
 	if (priv == NULL || priv->cpu_bo == NULL) {
 		DBG(("%s: no cpu bo\n", __FUNCTION__));
+		return NULL;
+	}
+
+	if (priv->cpu_bo->snoop && priv->source_count > SOURCE_BIAS) {
+		DBG(("%s: promoting snooped CPU bo due to reuse\n",
+		     __FUNCTION__));
 		return NULL;
 	}
 
@@ -321,41 +336,54 @@ use_cpu_bo(struct sna *sna, PixmapPtr pixmap, const BoxRec *box)
 			}
 			break;
 		}
+	}
 
-		if (priv->gpu_bo->tiling != I915_TILING_NONE &&
-		    (priv->cpu_bo->vmap || priv->cpu_bo->pitch >= 4096)) {
-			DBG(("%s: GPU bo exists and is tiled [%d], upload\n",
-			     __FUNCTION__, priv->gpu_bo->tiling));
-			return NULL;
-		}
-	} else {
+	if (!blt) {
 		int w = box->x2 - box->x1;
 		int h = box->y2 - box->y1;
 
-		if (priv->cpu_bo->vmap && priv->source_count > SOURCE_BIAS) {
-			DBG(("%s: promoting snooped CPU bo due to reuse\n",
-			     __FUNCTION__));
-			return NULL;
-		}
+		if (w < pixmap->drawable.width ||
+		    h < pixmap->drawable.height ||
+		    priv->source_count != SOURCE_BIAS) {
+			bool want_tiling;
 
-		if (priv->source_count++*w*h >= (int)pixmap->drawable.width * pixmap->drawable.height &&
-		     I915_TILING_NONE != kgem_choose_tiling(&sna->kgem, I915_TILING_Y,
-							    pixmap->drawable.width,
-							    pixmap->drawable.height,
-							    pixmap->drawable.bitsPerPixel)) {
-			DBG(("%s: pitch (%d) requires tiling\n",
-			     __FUNCTION__, priv->cpu_bo->pitch));
-			return NULL;
+			if (priv->cpu_bo->pitch >= 4096) {
+				DBG(("%s: promoting snooped CPU bo due to TLB miss\n",
+				     __FUNCTION__));
+				return NULL;
+			}
+
+			if (priv->gpu_bo)
+				want_tiling = priv->gpu_bo->tiling != I915_TILING_NONE;
+			else
+				want_tiling = kgem_choose_tiling(&sna->kgem,
+								 I915_TILING_Y,
+								 pixmap->drawable.width,
+								 pixmap->drawable.height,
+								 pixmap->drawable.bitsPerPixel) != I915_TILING_NONE;
+			if (want_tiling &&
+			    priv->source_count*w*h >= (int)pixmap->drawable.width * pixmap->drawable.height) {
+				DBG(("%s: pitch (%d) requires tiling\n",
+				     __FUNCTION__, priv->cpu_bo->pitch));
+				return NULL;
+			}
 		}
+	}
+
+	if (priv->shm) {
+		assert(!priv->flush);
+		list_move(&priv->list, &sna->flush_pixmaps);
+		sna->kgem.flush |= 1;
 	}
 
 	DBG(("%s for box=(%d, %d), (%d, %d)\n",
 	     __FUNCTION__, box->x1, box->y1, box->x2, box->y2));
+	++priv->source_count;
 	return priv->cpu_bo;
 }
 
 static struct kgem_bo *
-move_to_gpu(PixmapPtr pixmap, const BoxRec *box)
+move_to_gpu(PixmapPtr pixmap, const BoxRec *box, bool blt)
 {
 	struct sna_pixmap *priv;
 	int count, w, h;
@@ -390,7 +418,7 @@ move_to_gpu(PixmapPtr pixmap, const BoxRec *box)
 
 	if (DBG_FORCE_UPLOAD < 0) {
 		if (!sna_pixmap_force_to_gpu(pixmap,
-					       MOVE_SOURCE_HINT | MOVE_READ))
+					     blt ? MOVE_READ : MOVE_SOURCE_HINT | MOVE_READ))
 			return NULL;
 
 		return priv->gpu_bo;
@@ -407,7 +435,7 @@ move_to_gpu(PixmapPtr pixmap, const BoxRec *box)
 		     box->x1, box->y1, box->x2, box->y2, priv->source_count,
 		     migrate));
 	} else if (kgem_choose_tiling(&to_sna_from_pixmap(pixmap)->kgem,
-				      I915_TILING_Y, w, h,
+				      blt ? I915_TILING_X : I915_TILING_Y, w, h,
 				      pixmap->drawable.bitsPerPixel) != I915_TILING_NONE) {
 		count = priv->source_count++;
 		if ((priv->create & KGEM_CAN_CREATE_GPU) == 0)
@@ -424,7 +452,7 @@ move_to_gpu(PixmapPtr pixmap, const BoxRec *box)
 	}
 
 	if (migrate && !sna_pixmap_force_to_gpu(pixmap,
-						MOVE_SOURCE_HINT | MOVE_READ))
+						blt ? MOVE_READ : MOVE_SOURCE_HINT | MOVE_READ))
 		return NULL;
 
 	return priv->gpu_bo;
@@ -465,19 +493,35 @@ static struct kgem_bo *upload(struct sna *sna,
 				      pixmap->devPrivate.ptr, box,
 				      pixmap->devKind,
 				      pixmap->drawable.bitsPerPixel);
-	if (bo) {
+	if (channel && bo) {
 		channel->width  = box->x2 - box->x1;
 		channel->height = box->y2 - box->y1;
 		channel->offset[0] -= box->x1;
 		channel->offset[1] -= box->y1;
-		channel->scale[0] = 1.f/channel->width;
-		channel->scale[1] = 1.f/channel->height;
 
 		if (priv &&
 		    pixmap->usage_hint == 0 &&
 		    channel->width  == pixmap->drawable.width &&
 		    channel->height == pixmap->drawable.height)
 			kgem_proxy_bo_attach(bo, &priv->gpu_bo);
+	}
+
+	return bo;
+}
+
+struct kgem_bo *
+__sna_render_pixmap_bo(struct sna *sna,
+		       PixmapPtr pixmap,
+		       const BoxRec *box,
+		       bool blt)
+{
+	struct kgem_bo *bo;
+
+	bo = use_cpu_bo(sna, pixmap, box, blt);
+	if (bo == NULL) {
+		bo = move_to_gpu(pixmap, box, blt);
+		if (bo == NULL)
+			return NULL;
 	}
 
 	return bo;
@@ -491,7 +535,6 @@ sna_render_pixmap_bo(struct sna *sna,
 		     int16_t w, int16_t h,
 		     int16_t dst_x, int16_t dst_y)
 {
-	struct kgem_bo *bo;
 	struct sna_pixmap *priv;
 	BoxRec box;
 
@@ -500,8 +543,6 @@ sna_render_pixmap_bo(struct sna *sna,
 
 	channel->width  = pixmap->drawable.width;
 	channel->height = pixmap->drawable.height;
-	channel->scale[0] = 1.f / pixmap->drawable.width;
-	channel->scale[1] = 1.f / pixmap->drawable.height;
 	channel->offset[0] = x - dst_x;
 	channel->offset[1] = y - dst_y;
 
@@ -511,16 +552,16 @@ sna_render_pixmap_bo(struct sna *sna,
 		    (DAMAGE_IS_ALL(priv->gpu_damage) || !priv->cpu_damage ||
 		     priv->gpu_bo->proxy)) {
 			DBG(("%s: GPU all damaged\n", __FUNCTION__));
-			channel->bo = kgem_bo_reference(priv->gpu_bo);
-			return 1;
+			channel->bo = priv->gpu_bo;
+			goto done;
 		}
 
 		if (priv->cpu_bo &&
 		    (DAMAGE_IS_ALL(priv->cpu_damage) || !priv->gpu_damage) &&
-		    !priv->cpu_bo->vmap && priv->cpu_bo->pitch < 4096) {
+		    !priv->cpu_bo->snoop && priv->cpu_bo->pitch < 4096) {
 			DBG(("%s: CPU all damaged\n", __FUNCTION__));
-			channel->bo = kgem_bo_reference(priv->cpu_bo);
-			return 1;
+			channel->bo = priv->cpu_bo;
+			goto done;
 		}
 	}
 
@@ -572,21 +613,22 @@ sna_render_pixmap_bo(struct sna *sna,
 	     channel->offset[0], channel->offset[1],
 	     pixmap->drawable.width, pixmap->drawable.height));
 
-	bo = use_cpu_bo(sna, pixmap, &box);
-	if (bo) {
-		bo = kgem_bo_reference(bo);
+
+	channel->bo = __sna_render_pixmap_bo(sna, pixmap, &box, false);
+	if (channel->bo == NULL) {
+		DBG(("%s: uploading CPU box (%d, %d), (%d, %d)\n",
+		     __FUNCTION__, box.x1, box.y1, box.x2, box.y2));
+		channel->bo = upload(sna, channel, pixmap, &box);
+		if (channel->bo == NULL)
+			return 0;
 	} else {
-		bo = move_to_gpu(pixmap, &box);
-		if (bo == NULL) {
-			DBG(("%s: uploading CPU box (%d, %d), (%d, %d)\n",
-			     __FUNCTION__, box.x1, box.y1, box.x2, box.y2));
-			bo = upload(sna, channel, pixmap, &box);
-		} else
-			bo = kgem_bo_reference(bo);
+done:
+		kgem_bo_reference(channel->bo);
 	}
 
-	channel->bo = bo;
-	return bo != NULL;
+	channel->scale[0] = 1.f / channel->width;
+	channel->scale[1] = 1.f / channel->height;
+	return 1;
 }
 
 static int sna_render_picture_downsample(struct sna *sna,
@@ -755,7 +797,7 @@ static int sna_render_picture_downsample(struct sna *sna,
 						   &op))
 				goto cleanup_src;
 
-			op.boxes(sna, &op, &b, 1);
+			op.box(sna, &op, &b);
 			op.done(sna, &op);
 		}
 	}
@@ -929,14 +971,11 @@ sna_render_picture_partial(struct sna *sna,
 		}
 	}
 
-	if (use_cpu_bo(sna, pixmap, &box)) {
-		if (!sna_pixmap_move_to_cpu(pixmap, MOVE_READ))
-			return 0;
-
+	if (use_cpu_bo(sna, pixmap, &box, false)) {
 		bo = sna_pixmap(pixmap)->cpu_bo;
 	} else {
 		if (!sna_pixmap_force_to_gpu(pixmap,
-					     MOVE_SOURCE_HINT | MOVE_READ))
+					     MOVE_READ | MOVE_SOURCE_HINT))
 			return 0;
 
 		bo = sna_pixmap(pixmap)->gpu_bo;
@@ -1119,12 +1158,9 @@ sna_render_picture_extract(struct sna *sna,
 						     dst_x, dst_y);
 	}
 
-	src_bo = use_cpu_bo(sna, pixmap, &box);
-	if (src_bo) {
-		if (!sna_pixmap_move_to_cpu(pixmap, MOVE_READ))
-			return 0;
-	} else {
-		src_bo = move_to_gpu(pixmap, &box);
+	src_bo = use_cpu_bo(sna, pixmap, &box, true);
+	if (src_bo == NULL) {
+		src_bo = move_to_gpu(pixmap, &box, false);
 		if (src_bo == NULL) {
 			bo = kgem_upload_source_image(&sna->kgem,
 						      pixmap->devPrivate.ptr,
@@ -1293,7 +1329,7 @@ sna_render_picture_convolve(struct sna *sna,
 	channel->width  = w;
 	channel->filter = PictFilterNearest;
 	channel->repeat = RepeatNone;
-	channel->is_affine = TRUE;
+	channel->is_affine = true;
 	channel->transform = NULL;
 	channel->scale[0] = 1.f / w;
 	channel->scale[1] = 1.f / h;
@@ -1360,7 +1396,7 @@ sna_render_picture_flatten(struct sna *sna,
 	channel->filter = PictFilterNearest;
 	channel->repeat = RepeatNone;
 	channel->pict_format = PIXMAN_a8r8g8b8;
-	channel->is_affine = TRUE;
+	channel->is_affine = true;
 	channel->transform = NULL;
 	channel->scale[0] = 1.f / w;
 	channel->scale[1] = 1.f / h;
@@ -1419,7 +1455,7 @@ sna_render_picture_approximate_gradient(struct sna *sna,
 		return 0;
 	}
 
-	src = image_from_pict(picture, FALSE, &dx, &dy);
+	src = image_from_pict(picture, false, &dx, &dy);
 	if (src == NULL) {
 		pixman_image_unref(dst);
 		kgem_bo_destroy(&sna->kgem, channel->bo);
@@ -1447,7 +1483,7 @@ sna_render_picture_approximate_gradient(struct sna *sna,
 
 	channel->filter = PictFilterNearest;
 	channel->repeat = RepeatNone;
-	channel->is_affine = TRUE;
+	channel->is_affine = true;
 
 	channel->scale[0] = 1.f/w;
 	channel->scale[1] = 1.f/h;
@@ -1540,7 +1576,7 @@ do_fixup:
 		return 0;
 	}
 
-	src = image_from_pict(picture, FALSE, &dx, &dy);
+	src = image_from_pict(picture, false, &dx, &dy);
 	if (src == NULL) {
 		pixman_image_unref(dst);
 		kgem_bo_destroy(&sna->kgem, channel->bo);
@@ -1574,7 +1610,7 @@ do_fixup:
 					       w, h);
 			pixman_image_unref(src);
 		} else {
-			memset(ptr, 0, kgem_buffer_size(channel->bo));
+			memset(ptr, 0, __kgem_buffer_size(channel->bo));
 			dst = src;
 		}
 	}
@@ -1585,7 +1621,7 @@ do_fixup:
 
 	channel->filter = PictFilterNearest;
 	channel->repeat = RepeatNone;
-	channel->is_affine = TRUE;
+	channel->is_affine = true;
 
 	channel->scale[0] = 1.f/w;
 	channel->scale[1] = 1.f/h;
@@ -1729,7 +1765,7 @@ sna_render_composite_redirect(struct sna *sna,
 	struct kgem_bo *bo;
 
 #if NO_REDIRECT
-	return FALSE;
+	return false;
 #endif
 
 	DBG(("%s: target too large (%dx%d), copying to temporary %dx%d, max %d\n",
@@ -1739,11 +1775,11 @@ sna_render_composite_redirect(struct sna *sna,
 	     sna->render.max_3d_size));
 
 	if (!width || !height)
-		return FALSE;
+		return false;
 
 	if (width  > sna->render.max_3d_size ||
 	    height > sna->render.max_3d_size)
-		return FALSE;
+		return false;
 
 	if (op->dst.bo->pitch <= sna->render.max_3d_pitch) {
 		BoxRec box;
@@ -1821,7 +1857,7 @@ sna_render_composite_redirect(struct sna *sna,
 				t->real_bo = NULL;
 				if (t->damage)
 					__sna_damage_destroy(t->damage);
-				return FALSE;
+				return false;
 			}
 
 			assert(op->dst.bo != t->real_bo);
@@ -1831,7 +1867,7 @@ sna_render_composite_redirect(struct sna *sna,
 			op->dst.y -= box.y1;
 			op->dst.width  = w;
 			op->dst.height = h;
-			return TRUE;
+			return true;
 		}
 	}
 
@@ -1845,7 +1881,7 @@ sna_render_composite_redirect(struct sna *sna,
 					       width, height, bpp),
 			    CREATE_TEMPORARY);
 	if (!bo)
-		return FALSE;
+		return false;
 
 	t->box.x1 = x + op->dst.x;
 	t->box.y1 = y + op->dst.y;
@@ -1860,7 +1896,7 @@ sna_render_composite_redirect(struct sna *sna,
 				bo, -t->box.x1, -t->box.y1,
 				bpp, &t->box, 1)) {
 		kgem_bo_destroy(&sna->kgem, bo);
-		return FALSE;
+		return false;
 	}
 
 	t->real_bo = op->dst.bo;
@@ -1876,7 +1912,7 @@ sna_render_composite_redirect(struct sna *sna,
 	op->dst.y = -y;
 	op->dst.width  = width;
 	op->dst.height = height;
-	return TRUE;
+	return true;
 }
 
 void

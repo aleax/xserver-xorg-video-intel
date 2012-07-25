@@ -2479,7 +2479,7 @@ trapezoids_fallback(CARD8 op, PicturePtr src, PicturePtr dst,
 				pixman_image_unref(image);
 			}
 			if (format != PIXMAN_a8) {
-				screen->DestroyPixmap(scratch);
+				sna_pixmap_destroy(scratch);
 				return;
 			}
 		} else {
@@ -2505,17 +2505,16 @@ trapezoids_fallback(CARD8 op, PicturePtr src, PicturePtr dst,
 		mask = CreatePicture(0, &scratch->drawable,
 				     PictureMatchFormat(screen, depth, format),
 				     0, 0, serverClient, &error);
-		screen->DestroyPixmap(scratch);
-		if (!mask)
-			return;
-
-		CompositePicture(op, src, mask, dst,
-				 xSrc + bounds.x1 - dst_x,
-				 ySrc + bounds.y1 - dst_y,
-				 0, 0,
-				 bounds.x1, bounds.y1,
-				 width, height);
-		FreePicture(mask, 0);
+		if (mask) {
+			CompositePicture(op, src, mask, dst,
+					 xSrc + bounds.x1 - dst_x,
+					 ySrc + bounds.y1 - dst_y,
+					 0, 0,
+					 bounds.x1, bounds.y1,
+					 width, height);
+			FreePicture(mask, 0);
+		}
+		sna_pixmap_destroy(scratch);
 	} else {
 		if (dst->polyEdge == PolyEdgeSharp)
 			maskFormat = PictureMatchFormat(screen, 1, PICT_a1);
@@ -3043,15 +3042,18 @@ lerp32_unaligned_box_row(PixmapPtr scratch, uint32_t color,
 {
 	int16_t x1 = pixman_fixed_to_int(trap->left.p1.x) + dx;
 	int16_t fx1 = grid_coverage(SAMPLES_X, trap->left.p1.x);
-	int16_t x2 = pixman_fixed_to_int(trap->right.p1.x) + dx;
-	int16_t fx2 = grid_coverage(SAMPLES_X, trap->right.p1.x);
+	int16_t x2 = pixman_fixed_to_int(trap->right.p2.x) + dx;
+	int16_t fx2 = grid_coverage(SAMPLES_X, trap->right.p2.x);
 
 	if (x1 < extents->x1)
 		x1 = extents->x1, fx1 = 0;
 	if (x2 > extents->x2)
 		x2 = extents->x2, fx2 = 0;
 
-	if (x2 < x1) {
+	DBG(("%s: x=(%d.%d, %d.%d), y=%dx%d, covered=%d\n", __FUNCTION__,
+	     x1, fx1, x2, fx2, y, h, covered));
+
+	if (x1 < x2) {
 		if (fx1) {
 			lerp32_opacity(scratch, color,
 				       x1, 1,
@@ -3185,6 +3187,7 @@ composite_unaligned_boxes_inplace__solid(CARD8 op, uint32_t color,
 	if (!(dst->format == PICT_a8r8g8b8 || dst->format == PICT_x8r8g8b8)) {
 		DBG(("%s: fallback -- can not perform operation in place, unhanbled format %08lx\n",
 		     __FUNCTION__, (long)dst->format));
+
 		goto pixman;
 	}
 
@@ -3193,7 +3196,7 @@ composite_unaligned_boxes_inplace__solid(CARD8 op, uint32_t color,
 
 	if (op == PictOpOver && (color >> 24) == 0xff)
 		op = PictOpSrc;
-	if (op == PictOpOver) {
+	if (op == PictOpOver || op == PictOpAdd) {
 		struct sna_pixmap *priv = sna_pixmap(pixmap);
 		if (priv && priv->clear && priv->clear_color == 0)
 			op = PictOpSrc;
@@ -3208,7 +3211,8 @@ composite_unaligned_boxes_inplace__solid(CARD8 op, uint32_t color,
 		goto pixman;
 	}
 
-	DBG(("%s: inplace operation on argb32 destination\n", __FUNCTION__));
+	DBG(("%s: inplace operation on argb32 destination x %d\n",
+	     __FUNCTION__, n));
 	do {
 		RegionRec clip;
 		BoxPtr extents;
@@ -3244,10 +3248,20 @@ composite_unaligned_boxes_inplace__solid(CARD8 op, uint32_t color,
 			int16_t y2 = dy + pixman_fixed_to_int(t->bottom);
 			int16_t fy2 = pixman_fixed_frac(t->bottom);
 
+			DBG(("%s: t=(%d, %d), (%d, %d), extents (%d, %d), (%d, %d)\n",
+			     __FUNCTION__,
+			     pixman_fixed_to_int(t->left.p1.x),
+			     pixman_fixed_to_int(t->top),
+			     pixman_fixed_to_int(t->right.p2.x),
+			     pixman_fixed_to_int(t->bottom),
+			     extents->x1, extents->y1,
+			     extents->x2, extents->y2));
+
 			if (y1 < extents->y1)
 				y1 = extents->y1, fy1 = 0;
 			if (y2 > extents->y2)
 				y2 = extents->y2, fy2 = 0;
+
 			if (y1 < y2) {
 				if (fy1) {
 					lerp32_unaligned_box_row(pixmap, color, extents,
@@ -3615,7 +3629,6 @@ composite_unaligned_boxes_fallback(CARD8 op,
 		mask = CreatePicture(0, &scratch->drawable,
 				     PictureMatchFormat(screen, 8, PICT_a8),
 				     0, 0, serverClient, &error);
-		screen->DestroyPixmap(scratch);
 		if (mask) {
 			CompositePicture(op, src, mask, dst,
 					 src_x + extents.x1 - dst_x,
@@ -3626,6 +3639,7 @@ composite_unaligned_boxes_fallback(CARD8 op,
 					 extents.y2 - extents.y1);
 			FreePicture(mask, 0);
 		}
+		sna_pixmap_destroy(scratch);
 	}
 
 	return true;
@@ -3658,7 +3672,9 @@ composite_unaligned_boxes(struct sna *sna,
 	if (ntrap > 1 && maskFormat)
 		return false;
 
-	if (force_fallback || !sna->render.composite_spans) {
+	if (force_fallback ||
+	    !sna->render.check_composite_spans(sna, op, src, dst, 0, 0,
+					       COMPOSITE_SPANS_RECTILINEAR)) {
 fallback:
 		return composite_unaligned_boxes_fallback(op, src, dst,
 							  src_x, src_y,
@@ -3704,6 +3720,15 @@ fallback:
 		DBG(("%s: trapezoids do not intersect drawable clips\n",
 		     __FUNCTION__)) ;
 		return true;
+	}
+
+	if (!sna->render.check_composite_spans(sna, op, src, dst,
+					       clip.extents.x2 - clip.extents.x1,
+					       clip.extents.y2 - clip.extents.y1,
+					       COMPOSITE_SPANS_RECTILINEAR)) {
+		DBG(("%s: fallback -- composite spans not supported\n",
+		     __FUNCTION__));
+		goto fallback;
 	}
 
 	c = NULL;
@@ -4001,7 +4026,7 @@ trapezoid_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	}
 
 	sna = to_sna_from_drawable(dst->pDrawable);
-	if (!sna->render.composite_spans) {
+	if (!sna->render.check_composite_spans(sna, op, src, dst, 0, 0, flags)) {
 		DBG(("%s: fallback -- composite spans not supported\n",
 		     __FUNCTION__));
 		return false;
@@ -4036,6 +4061,15 @@ trapezoid_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 		DBG(("%s: trapezoids do not intersect drawable clips\n",
 		     __FUNCTION__)) ;
 		return true;
+	}
+
+	if (!sna->render.check_composite_spans(sna, op, src, dst,
+					       clip.extents.x2 - clip.extents.x1,
+					       clip.extents.y2 - clip.extents.y1,
+					       flags)) {
+		DBG(("%s: fallback -- composite spans not supported\n",
+		     __FUNCTION__));
+		return false;
 	}
 
 	extents = *RegionExtents(&clip);
@@ -4225,7 +4259,7 @@ trapezoid_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	     __FUNCTION__, scratch->devPrivate.ptr, scratch->devKind));
 
 	if (tor_init(&tor, &extents, 2*ntrap)) {
-		screen->DestroyPixmap(scratch);
+		sna_pixmap_destroy(scratch);
 		return true;
 	}
 
@@ -4259,7 +4293,6 @@ trapezoid_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	mask = CreatePicture(0, &scratch->drawable,
 			     PictureMatchFormat(screen, 8, PICT_a8),
 			     0, 0, serverClient, &error);
-	screen->DestroyPixmap(scratch);
 	if (mask) {
 		CompositePicture(op, src, mask, dst,
 				 src_x + dst_x - pixman_fixed_to_int(traps[0].left.p1.x),
@@ -4269,6 +4302,7 @@ trapezoid_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 				 extents.x2, extents.y2);
 		FreePicture(mask, 0);
 	}
+	sna_pixmap_destroy(scratch);
 
 	return true;
 }
@@ -4809,48 +4843,93 @@ unbounded_pass:
 	return true;
 }
 
+static void
+pixmask_span(struct sna *sna,
+	     struct sna_composite_spans_op *op,
+	     pixman_region16_t *clip,
+	     const BoxRec *box,
+	     int coverage)
+{
+	struct pixman_inplace *pi = (struct pixman_inplace *)op;
+	pixman_image_t *mask = NULL;
+	if (coverage != FAST_SAMPLES_XY) {
+		coverage = coverage * 256 / FAST_SAMPLES_XY;
+		coverage -= coverage >> 8;
+		*pi->bits = coverage;
+		mask = pi->mask;
+	}
+	pixman_image_composite(pi->op, pi->source, mask, pi->image,
+			       pi->sx + box->x1, pi->sy + box->y1,
+			       0, 0,
+			       pi->dx + box->x1, pi->dy + box->y1,
+			       box->x2 - box->x1, box->y2 - box->y1);
+}
+static void
+pixmask_span__clipped(struct sna *sna,
+		      struct sna_composite_spans_op *op,
+		      pixman_region16_t *clip,
+		      const BoxRec *box,
+		      int coverage)
+{
+	pixman_region16_t region;
+	int n;
+
+	pixman_region_init_rects(&region, box, 1);
+	RegionIntersect(&region, &region, clip);
+	n = REGION_NUM_RECTS(&region);
+	box = REGION_RECTS(&region);
+	while (n--)
+		pixmask_span(sna, op, NULL, box++, coverage);
+	pixman_region_fini(&region);
+}
+
 static bool
 trapezoid_span_inplace__x8r8g8b8(CARD8 op,
-				 uint32_t color,
 				 PicturePtr dst,
+				 PicturePtr src, int16_t src_x, int16_t src_y,
 				 PictFormatPtr maskFormat,
 				 int ntrap, xTrapezoid *traps)
 {
 	struct tor tor;
 	span_func_t span;
+	uint32_t color;
+	bool lerp;
 	RegionRec region;
 	int16_t dst_x, dst_y;
 	int dx, dy;
 	int n;
 
-	if (op == PictOpOver && (color >> 24) == 0xff)
-		op = PictOpSrc;
-	if (op == PictOpOver) {
-		struct sna_pixmap *priv = sna_pixmap_from_drawable(dst->pDrawable);
-		if (priv && priv->clear && priv->clear_color == 0)
+	lerp = false;
+	if (sna_picture_is_solid(src, &color)) {
+		if (op == PictOpOver && (color >> 24) == 0xff)
 			op = PictOpSrc;
+		if (op == PictOpOver && sna_drawable_is_clear(dst->pDrawable))
+			op = PictOpSrc;
+		lerp = op == PictOpSrc;
 	}
-
-	switch (op) {
-	case PictOpSrc:
-		break;
-	default:
-		DBG(("%s: fallback -- can not perform op [%d] in place\n",
-		     __FUNCTION__, op));
-		return false;
+	if (!lerp) {
+		switch (op) {
+		case PictOpOver:
+		case PictOpAdd:
+		case PictOpOutReverse:
+			break;
+		case PictOpSrc:
+			if (!sna_drawable_is_clear(dst->pDrawable))
+				return false;
+			break;
+		default:
+			return false;
+		}
 	}
-
-	DBG(("%s: format=%x, op=%d, color=%x\n",
-	     __FUNCTION__, dst->format, op, color));
 
 	if (maskFormat == NULL && ntrap > 1) {
 		DBG(("%s: individual rasterisation requested\n",
 		     __FUNCTION__));
 		do {
 			/* XXX unwind errors? */
-			if (!trapezoid_span_inplace__x8r8g8b8(op, color,
-							      dst, NULL,
-							      1, traps++))
+			if (!trapezoid_span_inplace__x8r8g8b8(op, dst,
+							      src, src_x, src_y,
+							      NULL, 1, traps++))
 				return false;
 		} while (--ntrap);
 		return true;
@@ -4867,8 +4946,8 @@ trapezoid_span_inplace__x8r8g8b8(CARD8 op,
 	     region.extents.x2, region.extents.y2));
 
 	if (!sna_compute_composite_extents(&region.extents,
-					   NULL, NULL, dst,
-					   0, 0,
+					   src, NULL, dst,
+					   src_x, src_y,
 					   0, 0,
 					   region.extents.x1, region.extents.y1,
 					   region.extents.x2 - region.extents.x1,
@@ -4900,37 +4979,63 @@ trapezoid_span_inplace__x8r8g8b8(CARD8 op,
 		tor_add_edge(&tor, &t, &t.right, -1);
 	}
 
-	switch (op) {
-	case PictOpSrc:
-		if (dst->pCompositeClip->data)
-			span = tor_blt_lerp32_clipped;
-		else
-			span = tor_blt_lerp32;
-		break;
-	}
-
 	DBG(("%s: move-to-cpu\n", __FUNCTION__));
 	region.data = NULL;
 	if (sna_drawable_move_region_to_cpu(dst->pDrawable, &region,
 					    MOVE_WRITE | MOVE_READ)) {
 		PixmapPtr pixmap;
-		struct inplace inplace;
 
 		pixmap = get_drawable_pixmap(dst->pDrawable);
-
 		get_drawable_deltas(dst->pDrawable, pixmap, &dst_x, &dst_y);
 
-		inplace.ptr = pixmap->devPrivate.ptr;
-		inplace.ptr += dst_y * pixmap->devKind + dst_x;
-		inplace.stride = pixmap->devKind;
-		inplace.color = color;
+		DBG(("%s: format=%x, op=%d, color=%x\n",
+		     __FUNCTION__, dst->format, op, color));
 
-		DBG(("%s: render inplace op=%d, color=%08x\n",
-		     __FUNCTION__, op, color));
-		tor_render(NULL, &tor, (void*)&inplace,
-			   dst->pCompositeClip, span, false);
+		if (lerp) {
+			struct inplace inplace;
 
-		tor_fini(&tor);
+			inplace.ptr = pixmap->devPrivate.ptr;
+			inplace.ptr += dst_y * pixmap->devKind + dst_x;
+			inplace.stride = pixmap->devKind;
+			inplace.color = color;
+
+			if (dst->pCompositeClip->data)
+				span = tor_blt_lerp32_clipped;
+			else
+				span = tor_blt_lerp32;
+
+			DBG(("%s: render inplace op=%d, color=%08x\n",
+			     __FUNCTION__, op, color));
+
+			tor_render(NULL, &tor, (void*)&inplace,
+				   dst->pCompositeClip, span, false);
+			tor_fini(&tor);
+		} else {
+			struct pixman_inplace pi;
+
+			pi.image = image_from_pict(dst, false, &pi.dx, &pi.dy);
+			pi.source = image_from_pict(src, false, &pi.sx, &pi.sy);
+			pi.sx += src_x - pixman_fixed_to_int(traps[0].left.p1.x);
+			pi.sy += src_y - pixman_fixed_to_int(traps[0].left.p1.y);
+			pi.mask = pixman_image_create_bits(PIXMAN_a8, 1, 1, NULL, 0);
+			pixman_image_set_repeat(pi.mask, PIXMAN_REPEAT_NORMAL);
+			pi.bits = pixman_image_get_data(pi.mask);
+			pi.op = op;
+
+			if (dst->pCompositeClip->data)
+				span = pixmask_span__clipped;
+			else
+				span = pixmask_span;
+
+			tor_render(NULL, &tor, (void*)&pi,
+				   dst->pCompositeClip, span,
+				   false);
+			tor_fini(&tor);
+
+			pixman_image_unref(pi.mask);
+			pixman_image_unref(pi.source);
+			pixman_image_unref(pi.image);
+		}
 	}
 
 	return true;
@@ -4979,16 +5084,17 @@ trapezoid_span_inplace(CARD8 op, PicturePtr src, PicturePtr dst,
 		return trapezoid_span_mono_inplace(op, src, dst,
 						   src_x, src_y, ntrap, traps);
 
+	if (dst->format == PICT_a8r8g8b8 || dst->format == PICT_x8r8g8b8)
+		return trapezoid_span_inplace__x8r8g8b8(op, dst,
+							src, src_x, src_y,
+							maskFormat,
+							ntrap, traps);
+
 	if (!sna_picture_is_solid(src, &color)) {
 		DBG(("%s: fallback -- can not perform operation in place, requires solid source\n",
 		     __FUNCTION__));
 		return false;
 	}
-
-	if (dst->format == PICT_a8r8g8b8 || dst->format == PICT_x8r8g8b8)
-		return trapezoid_span_inplace__x8r8g8b8(op, color,
-							dst, maskFormat,
-							ntrap, traps);
 
 	if (dst->format != PICT_a8) {
 		DBG(("%s: fallback -- can not perform operation in place, format=%x\n",
@@ -5216,7 +5322,7 @@ trapezoid_span_fallback(CARD8 op, PicturePtr src, PicturePtr dst,
 	     __FUNCTION__, scratch->devPrivate.ptr, scratch->devKind));
 
 	if (tor_init(&tor, &extents, 2*ntrap)) {
-		screen->DestroyPixmap(scratch);
+		sna_pixmap_destroy(scratch);
 		return true;
 	}
 
@@ -5248,7 +5354,6 @@ trapezoid_span_fallback(CARD8 op, PicturePtr src, PicturePtr dst,
 	mask = CreatePicture(0, &scratch->drawable,
 			     PictureMatchFormat(screen, 8, PICT_a8),
 			     0, 0, serverClient, &error);
-	screen->DestroyPixmap(scratch);
 	if (mask) {
 		RegionRec region;
 
@@ -5286,6 +5391,7 @@ trapezoid_span_fallback(CARD8 op, PicturePtr src, PicturePtr dst,
 done:
 		FreePicture(mask, 0);
 	}
+	sna_pixmap_destroy(scratch);
 
 	return true;
 }
@@ -5546,11 +5652,8 @@ trap_span_converter(PicturePtr dst,
 	struct sna_composite_spans_op tmp;
 	struct tor tor;
 	BoxRec extents;
-	PicturePtr src;
-	xRenderColor white;
 	pixman_region16_t *clip;
-	int dx, dy;
-	int n, error;
+	int dx, dy, n;
 
 	if (NO_SCAN_CONVERTER)
 		return false;
@@ -5562,14 +5665,14 @@ trap_span_converter(PicturePtr dst,
 		return mono_trap_span_converter(dst, src_x, src_y, ntrap, trap);
 
 	sna = to_sna_from_drawable(dst->pDrawable);
-	if (!sna->render.composite_spans) {
+	if (!sna->render.check_composite_spans(sna, PictOpAdd, sna->render.white_picture, dst,
+					       dst->pCompositeClip->extents.x2 - dst->pCompositeClip->extents.x1,
+					       dst->pCompositeClip->extents.y2 - dst->pCompositeClip->extents.y1,
+					       0)) {
 		DBG(("%s: fallback -- composite spans not supported\n",
 		     __FUNCTION__));
 		return false;
 	}
-
-	DBG(("%s: extents (%d, %d), (%d, %d)\n",
-	     __FUNCTION__, extents.x1, extents.y1, extents.x2, extents.y2));
 
 	clip = dst->pCompositeClip;
 	extents = *RegionExtents(clip);
@@ -5582,13 +5685,8 @@ trap_span_converter(PicturePtr dst,
 	     extents.x2, extents.y2,
 	     dx, dy));
 
-	white.red = white.green = white.blue = white.alpha = 0xffff;
-	src = CreateSolidPicture(0, &white, &error);
-	if (src == NULL)
-		return true;
-
 	memset(&tmp, 0, sizeof(tmp));
-	if (!sna->render.composite_spans(sna, PictOpAdd, src, dst,
+	if (!sna->render.composite_spans(sna, PictOpAdd, sna->render.white_picture, dst,
 					 0, 0,
 					 extents.x1,  extents.y1,
 					 extents.x2 - extents.x1,
@@ -5597,7 +5695,6 @@ trap_span_converter(PicturePtr dst,
 					 &tmp)) {
 		DBG(("%s: fallback -- composite spans render op not supported\n",
 		     __FUNCTION__));
-		FreePicture(src, 0);
 		return false;
 	}
 
@@ -5636,7 +5733,6 @@ trap_span_converter(PicturePtr dst,
 skip:
 	tor_fini(&tor);
 	tmp.done(sna, &tmp);
-	FreePicture(src, 0);
 	return true;
 }
 
@@ -5726,7 +5822,7 @@ trap_mask_converter(PicturePtr picture,
 	dx *= FAST_SAMPLES_X;
 	dy *= FAST_SAMPLES_Y;
 	if (tor_init(&tor, &extents, 2*ntrap)) {
-		screen->DestroyPixmap(scratch);
+		sna_pixmap_destroy(scratch);
 		return true;
 	}
 
@@ -5774,8 +5870,7 @@ trap_mask_converter(PicturePtr picture,
 			       pixmap, priv->gpu_bo, x, y,
 			       &extents, 1, 0);
 	mark_damaged(pixmap, priv, &extents ,x, y);
-
-	screen->DestroyPixmap(scratch);
+	sna_pixmap_destroy(scratch);
 	return true;
 }
 
@@ -5853,7 +5948,7 @@ trap_upload(PicturePtr picture,
 			       &extents, 1, 0);
 	mark_damaged(pixmap, priv, &extents, x, y);
 
-	screen->DestroyPixmap(scratch);
+	sna_pixmap_destroy(scratch);
 	return true;
 }
 
@@ -6088,7 +6183,7 @@ triangles_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	}
 
 	sna = to_sna_from_drawable(dst->pDrawable);
-	if (!sna->render.composite_spans) {
+	if (!sna->render.check_composite_spans(sna, op, src, dst, 0, 0, 0)) {
 		DBG(("%s: fallback -- composite spans not supported\n",
 		     __FUNCTION__));
 		return false;
@@ -6123,6 +6218,15 @@ triangles_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 		DBG(("%s: triangles do not intersect drawable clips\n",
 		     __FUNCTION__)) ;
 		return true;
+	}
+
+	if (!sna->render.check_composite_spans(sna, op, src, dst,
+					       clip.extents.x2 - clip.extents.x1,
+					       clip.extents.y2 - clip.extents.y1,
+					       0)) {
+		DBG(("%s: fallback -- composite spans not supported\n",
+		     __FUNCTION__));
+		return false;
 	}
 
 	extents = *RegionExtents(&clip);
@@ -6256,7 +6360,7 @@ triangles_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	     __FUNCTION__, scratch->devPrivate.ptr, scratch->devKind));
 
 	if (tor_init(&tor, &extents, 3*count)) {
-		screen->DestroyPixmap(scratch);
+		sna_pixmap_destroy(scratch);
 		return true;
 	}
 
@@ -6284,7 +6388,6 @@ triangles_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	mask = CreatePicture(0, &scratch->drawable,
 			     PictureMatchFormat(screen, 8, PICT_a8),
 			     0, 0, serverClient, &error);
-	screen->DestroyPixmap(scratch);
 	if (mask) {
 		CompositePicture(op, src, mask, dst,
 				 src_x + dst_x - pixman_fixed_to_int(tri[0].p1.x),
@@ -6295,6 +6398,7 @@ triangles_mask_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 		FreePicture(mask, 0);
 	}
 	tor_fini(&tor);
+	sna_pixmap_destroy(scratch);
 
 	return true;
 }
@@ -6372,17 +6476,16 @@ triangles_fallback(CARD8 op,
 		mask = CreatePicture(0, &scratch->drawable,
 				     PictureMatchFormat(screen, depth, format),
 				     0, 0, serverClient, &error);
-		screen->DestroyPixmap(scratch);
-		if (!mask)
-			return;
-
-		CompositePicture(op, src, mask, dst,
-				 xSrc + bounds.x1 - dst_x,
-				 ySrc + bounds.y1 - dst_y,
-				 0, 0,
-				 bounds.x1, bounds.y1,
-				 width, height);
-		FreePicture(mask, 0);
+		if (mask) {
+			CompositePicture(op, src, mask, dst,
+					 xSrc + bounds.x1 - dst_x,
+					 ySrc + bounds.y1 - dst_y,
+					 0, 0,
+					 bounds.x1, bounds.y1,
+					 width, height);
+			FreePicture(mask, 0);
+		}
+		sna_pixmap_destroy(scratch);
 	} else {
 		if (dst->polyEdge == PolyEdgeSharp)
 			maskFormat = PictureMatchFormat(screen, 1, PICT_a1);
@@ -6444,7 +6547,7 @@ tristrip_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 	}
 
 	sna = to_sna_from_drawable(dst->pDrawable);
-	if (!sna->render.composite_spans) {
+	if (!sna->render.check_composite_spans(sna, op, src, dst, 0, 0, 0)) {
 		DBG(("%s: fallback -- composite spans not supported\n",
 		     __FUNCTION__));
 		return false;
@@ -6479,6 +6582,15 @@ tristrip_span_converter(CARD8 op, PicturePtr src, PicturePtr dst,
 		DBG(("%s: triangles do not intersect drawable clips\n",
 		     __FUNCTION__)) ;
 		return true;
+	}
+
+	if (!sna->render.check_composite_spans(sna, op, src, dst,
+					       clip.extents.x2 - clip.extents.x1,
+					       clip.extents.y2 - clip.extents.y1,
+					       0)) {
+		DBG(("%s: fallback -- composite spans not supported\n",
+		     __FUNCTION__));
+		return false;
 	}
 
 	extents = *RegionExtents(&clip);
@@ -6631,17 +6743,16 @@ tristrip_fallback(CARD8 op,
 		mask = CreatePicture(0, &scratch->drawable,
 				     PictureMatchFormat(screen, depth, format),
 				     0, 0, serverClient, &error);
-		screen->DestroyPixmap(scratch);
-		if (!mask)
-			return;
-
-		CompositePicture(op, src, mask, dst,
-				 xSrc + bounds.x1 - dst_x,
-				 ySrc + bounds.y1 - dst_y,
-				 0, 0,
-				 bounds.x1, bounds.y1,
-				 width, height);
-		FreePicture(mask, 0);
+		if (mask) {
+			CompositePicture(op, src, mask, dst,
+					 xSrc + bounds.x1 - dst_x,
+					 ySrc + bounds.y1 - dst_y,
+					 0, 0,
+					 bounds.x1, bounds.y1,
+					 width, height);
+			FreePicture(mask, 0);
+		}
+		sna_pixmap_destroy(scratch);
 	} else {
 		xTriangle tri;
 		xPointFixed *p[3] = { &tri.p1, &tri.p2, &tri.p3 };
@@ -6766,17 +6877,16 @@ trifan_fallback(CARD8 op,
 		mask = CreatePicture(0, &scratch->drawable,
 				     PictureMatchFormat(screen, depth, format),
 				     0, 0, serverClient, &error);
-		screen->DestroyPixmap(scratch);
-		if (!mask)
-			return;
-
-		CompositePicture(op, src, mask, dst,
-				 xSrc + bounds.x1 - dst_x,
-				 ySrc + bounds.y1 - dst_y,
-				 0, 0,
-				 bounds.x1, bounds.y1,
-				 width, height);
-		FreePicture(mask, 0);
+		if (mask) {
+			CompositePicture(op, src, mask, dst,
+					 xSrc + bounds.x1 - dst_x,
+					 ySrc + bounds.y1 - dst_y,
+					 0, 0,
+					 bounds.x1, bounds.y1,
+					 width, height);
+			FreePicture(mask, 0);
+		}
+		sna_pixmap_destroy(scratch);
 	} else {
 		xTriangle tri;
 		xPointFixed *p[3] = { &tri.p1, &tri.p2, &tri.p3 };

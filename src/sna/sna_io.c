@@ -170,7 +170,8 @@ fallback:
 		return;
 	}
 
-	can_blt = kgem_bo_can_blt(kgem, src_bo);
+	can_blt = kgem_bo_can_blt(kgem, src_bo) &&
+		(box[0].x2 - box[0].x1) * dst->drawable.bitsPerPixel < 8 * (MAXSHORT - 4);
 	extents = box[0];
 	for (n = 1; n < nbox; n++) {
 		if (box[n].x1 < extents.x1)
@@ -438,7 +439,7 @@ fallback:
 		_kgem_set_mode(kgem, KGEM_BLT);
 		tmp_box += nbox_this_time;
 	} while (1);
-	assert(offset == kgem_buffer_size(dst_bo));
+	assert(offset == __kgem_buffer_size(dst_bo));
 
 	kgem_buffer_read_sync(kgem, dst_bo);
 
@@ -470,7 +471,7 @@ fallback:
 
 		src += pitch * height;
 	} while (--nbox);
-	assert(src - (char *)ptr == kgem_buffer_size(dst_bo));
+	assert(src - (char *)ptr == __kgem_buffer_size(dst_bo));
 	kgem_bo_destroy(kgem, dst_bo);
 	sna->blt_state.fill_bo = 0;
 }
@@ -575,7 +576,8 @@ fallback:
 					   box, nbox);
 	}
 
-	can_blt = kgem_bo_can_blt(kgem, dst_bo);
+	can_blt = kgem_bo_can_blt(kgem, dst_bo) &&
+		(box[0].x2 - box[0].x1) * dst->drawable.bitsPerPixel < 8 * (MAXSHORT - 4);
 	extents = box[0];
 	for (n = 1; n < nbox; n++) {
 		if (box[n].x1 < extents.x1)
@@ -841,7 +843,7 @@ tile:
 			box++;
 			offset += pitch * height;
 		} while (--nbox_this_time);
-		assert(offset == kgem_buffer_size(src_bo));
+		assert(offset == __kgem_buffer_size(src_bo));
 
 		if (nbox) {
 			_kgem_submit(kgem);
@@ -1079,7 +1081,7 @@ fallback:
 			box++;
 			offset += pitch * height;
 		} while (--nbox_this_time);
-		assert(offset == kgem_buffer_size(src_bo));
+		assert(offset == __kgem_buffer_size(src_bo));
 
 		if (nbox) {
 			_kgem_submit(kgem);
