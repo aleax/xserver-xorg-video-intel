@@ -231,7 +231,7 @@ struct sna {
 
 	EntityInfoPtr pEnt;
 	struct pci_device *PciInfo;
-	struct intel_chipset chipset;
+	const struct intel_device_info *info;
 
 	ScreenBlockHandlerProcPtr BlockHandler;
 	ScreenWakeupHandlerProcPtr WakeupHandler;
@@ -425,6 +425,7 @@ void sna_pixmap_destroy(PixmapPtr pixmap);
 #define MOVE_SOURCE_HINT 0x10
 #define MOVE_WHOLE_HINT 0x20
 #define __MOVE_FORCE 0x40
+#define __MOVE_DRI 0x80
 
 struct sna_pixmap *sna_pixmap_move_to_gpu(PixmapPtr pixmap, unsigned flags);
 static inline struct sna_pixmap *

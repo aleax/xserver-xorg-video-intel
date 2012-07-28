@@ -154,13 +154,21 @@ static struct kgem_bo *sna_pixmap_set_dri(struct sna *sna,
 	struct sna_pixmap *priv;
 	int tiling;
 
-	priv = sna_pixmap(pixmap);
-	if (priv == NULL || priv->shm)
-		return NULL;
+	DBG(("%s: attaching DRI client to pixmap=%ld\n",
+	     __FUNCTION__, pixmap->drawable.serialNumber));
 
-	priv = sna_pixmap_force_to_gpu(pixmap, MOVE_READ | MOVE_WRITE);
-	if (priv == NULL)
+	priv = sna_pixmap(pixmap);
+	if (priv != NULL && priv->shm) {
+		DBG(("%s: SHM Pixmap, BadAlloc\n", __FUNCTION__));
 		return NULL;
+	}
+
+	priv = sna_pixmap_move_to_gpu(pixmap,
+				      MOVE_READ | MOVE_WRITE | __MOVE_FORCE | __MOVE_DRI);
+	if (priv == NULL) {
+		DBG(("%s: failed to move to GPU, BadAlloc\n", __FUNCTION__));
+		return NULL;
+	}
 
 	if (priv->flush++)
 		return priv->gpu_bo;
@@ -180,6 +188,13 @@ static struct kgem_bo *sna_pixmap_set_dri(struct sna *sna,
 
 	/* Don't allow this named buffer to be replaced */
 	priv->pinned = 1;
+
+	if (priv->gpu_bo->exec || priv->cpu_damage) {
+		DBG(("%s: marking pixmap=%ld for flushing\n",
+		     __FUNCTION__, pixmap->drawable.serialNumber));
+		list_move(&priv->list, &sna->flush_pixmaps);
+		sna->kgem.flush = true;
+	}
 
 	return priv->gpu_bo;
 }
@@ -382,6 +397,7 @@ static void damage(PixmapPtr pixmap, RegionPtr region)
 	struct sna_pixmap *priv;
 
 	priv = sna_pixmap(pixmap);
+	assert(priv != NULL);
 	if (DAMAGE_IS_ALL(priv->gpu_damage))
 		return;
 
@@ -477,6 +493,28 @@ static void sna_dri_select_mode(struct sna *sna, struct kgem_bo *src, bool sync)
 	_kgem_set_mode(&sna->kgem, mode);
 }
 
+static void
+sna_dri_copy_fallback(struct sna *sna, int bpp,
+		      struct kgem_bo *src_bo, int sx, int sy,
+		      struct kgem_bo *dst_bo, int dx, int dy,
+		      const BoxRec *box, int n)
+{
+	void *dst = kgem_bo_map__gtt(&sna->kgem, dst_bo);
+	void *src = kgem_bo_map__gtt(&sna->kgem, src_bo);
+
+	DBG(("%s: src(%d, %d), dst(%d, %d) x %d\n",
+	     __FUNCTION__, sx, sy, dx, dy, n));
+
+	do {
+		memcpy_blt(src, dst, bpp,
+			   src_bo->pitch, dst_bo->pitch,
+			   box->x1 + sx, box->y1 + sy,
+			   box->x1 + dx, box->y1 + dy,
+			   box->x2 - box->x1, box->y2 - box->y1);
+		box++;
+	} while (--n);
+}
+
 static struct kgem_bo *
 sna_dri_copy_to_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		      struct kgem_bo *dst_bo, struct kgem_bo *src_bo,
@@ -508,6 +546,14 @@ sna_dri_copy_to_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		}
 	}
 
+	if (!wedged(sna)) {
+		if (sync)
+			sync = sna_pixmap_is_scanout(sna, pixmap);
+
+		sna_dri_select_mode(sna, src_bo, sync);
+	} else
+		sync = false;
+
 	dx = dy = 0;
 	if (draw->type != DRAWABLE_PIXMAP) {
 		WindowPtr win = (WindowPtr)draw;
@@ -531,7 +577,7 @@ sna_dri_copy_to_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 			region = &clip;
 		}
 
-		if (sync && sna_pixmap_is_scanout(sna, pixmap)) {
+		if (sync) {
 			crtc = sna_covering_crtc(sna->scrn, &clip.extents, NULL);
 			if (crtc)
 				flush = sna_wait_for_scanline(sna, pixmap, crtc,
@@ -540,8 +586,6 @@ sna_dri_copy_to_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 
 		get_drawable_deltas(draw, pixmap, &dx, &dy);
 	}
-
-	sna_dri_select_mode(sna, src_bo, flush);
 
 	damage(pixmap, region);
 	if (region) {
@@ -553,15 +597,22 @@ sna_dri_copy_to_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		boxes = &clip.extents;
 		n = 1;
 	}
-	sna->render.copy_boxes(sna, GXcopy,
-			       (PixmapPtr)draw, src_bo, -draw->x, -draw->y,
-			       pixmap, dst_bo, dx, dy,
-			       boxes, n, COPY_LAST);
+	if (wedged(sna)) {
+		sna_dri_copy_fallback(sna, draw->bitsPerPixel,
+				      src_bo, -draw->x, -draw->y,
+				      dst_bo, dx, dy,
+				      boxes, n);
+	} else {
+		sna->render.copy_boxes(sna, GXcopy,
+				       (PixmapPtr)draw, src_bo, -draw->x, -draw->y,
+				       pixmap, dst_bo, dx, dy,
+				       boxes, n, COPY_LAST);
 
-	DBG(("%s: flushing? %d\n", __FUNCTION__, flush));
-	if (flush) { /* STAT! */
-		kgem_submit(&sna->kgem);
-		bo = kgem_get_last_request(&sna->kgem);
+		DBG(("%s: flushing? %d\n", __FUNCTION__, flush));
+		if (flush) { /* STAT! */
+			kgem_submit(&sna->kgem);
+			bo = kgem_get_last_request(&sna->kgem);
+		}
 	}
 
 	pixman_region_translate(region, dx, dy);
@@ -626,8 +677,6 @@ sna_dri_copy_from_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		get_drawable_deltas(draw, pixmap, &dx, &dy);
 	}
 
-	sna_dri_select_mode(sna, src_bo, false);
-
 	if (region) {
 		boxes = REGION_RECTS(region);
 		n = REGION_NUM_RECTS(region);
@@ -638,10 +687,18 @@ sna_dri_copy_from_front(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		boxes = &box;
 		n = 1;
 	}
-	sna->render.copy_boxes(sna, GXcopy,
-			       pixmap, src_bo, dx, dy,
-			       (PixmapPtr)draw, dst_bo, -draw->x, -draw->y,
-			       boxes, n, COPY_LAST);
+	if (wedged(sna)) {
+		sna_dri_copy_fallback(sna, draw->bitsPerPixel,
+				      src_bo, dx, dy,
+				      dst_bo, -draw->x, -draw->y,
+				      boxes, n);
+	} else {
+		sna_dri_select_mode(sna, src_bo, false);
+		sna->render.copy_boxes(sna, GXcopy,
+				       pixmap, src_bo, dx, dy,
+				       (PixmapPtr)draw, dst_bo, -draw->x, -draw->y,
+				       boxes, n, COPY_LAST);
+	}
 
 	if (region == &clip)
 		pixman_region_fini(&clip);
@@ -679,12 +736,18 @@ sna_dri_copy(struct sna *sna, DrawablePtr draw, RegionPtr region,
 		n = 1;
 	}
 
-	sna_dri_select_mode(sna, src_bo, false);
-
-	sna->render.copy_boxes(sna, GXcopy,
-			       (PixmapPtr)draw, src_bo, 0, 0,
-			       (PixmapPtr)draw, dst_bo, 0, 0,
-			       boxes, n, COPY_LAST);
+	if (wedged(sna)) {
+		sna_dri_copy_fallback(sna, draw->bitsPerPixel,
+				      src_bo, 0, 0,
+				      dst_bo, 0, 0,
+				      boxes, n);
+	} else {
+		sna_dri_select_mode(sna, src_bo, false);
+		sna->render.copy_boxes(sna, GXcopy,
+				       (PixmapPtr)draw, src_bo, 0, 0,
+				       (PixmapPtr)draw, dst_bo, 0, 0,
+				       boxes, n, COPY_LAST);
+	}
 
 	if (region == &clip)
 		pixman_region_fini(&clip);

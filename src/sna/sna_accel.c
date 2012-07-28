@@ -923,20 +923,15 @@ static PixmapPtr sna_create_pixmap(ScreenPtr screen,
 	}
 	assert(width && height);
 
-	if (wedged(sna)) {
-		if (usage == SNA_CREATE_FB) {
-			flags = KGEM_CAN_CREATE_GPU;
-			goto force_create;
-		}
-		goto fallback;
-	}
-
 	flags = kgem_can_create_2d(&sna->kgem, width, height, depth);
 	if (flags == 0) {
 		DBG(("%s: can not use GPU, just creating shadow\n",
 		     __FUNCTION__));
 		goto fallback;
 	}
+
+	if (wedged(sna))
+		flags = 0;
 
 	if (usage == CREATE_PIXMAP_USAGE_SCRATCH) {
 		if (flags & KGEM_CAN_CREATE_GPU)
@@ -1153,8 +1148,10 @@ static inline bool operate_inplace(struct sna_pixmap *priv, unsigned flags)
 
 static inline void add_flush_pixmap(struct sna *sna, struct sna_pixmap *priv)
 {
+	DBG(("%s: marking pixmap=%ld for flushing\n",
+	     __FUNCTION__, priv->pixmap->drawable.serialNumber));
 	list_move(&priv->list, &sna->flush_pixmaps);
-	sna->kgem.flush |= 1;
+	sna->kgem.flush = true;
 }
 
 bool
@@ -2662,8 +2659,11 @@ sna_pixmap_move_to_gpu(PixmapPtr pixmap, unsigned flags)
 	BoxPtr box;
 	int n;
 
-	DBG(("%s(pixmap=%ld, usage=%d)\n",
-	     __FUNCTION__, pixmap->drawable.serialNumber, pixmap->usage_hint));
+	DBG(("%s(pixmap=%ld, usage=%d), flags=%x\n",
+	     __FUNCTION__,
+	     pixmap->drawable.serialNumber,
+	     pixmap->usage_hint,
+	     flags));
 
 	if ((flags & __MOVE_FORCE) == 0 && wedged(sna))
 		return NULL;
@@ -2671,7 +2671,18 @@ sna_pixmap_move_to_gpu(PixmapPtr pixmap, unsigned flags)
 	priv = sna_pixmap(pixmap);
 	if (priv == NULL) {
 		DBG(("%s: not attached\n", __FUNCTION__));
-		return NULL;
+		if ((flags & __MOVE_DRI) == 0)
+			return NULL;
+
+		DBG(("%s: forcing the creation on the GPU\n", __FUNCTION__));
+
+		priv = sna_pixmap_attach(pixmap);
+		if (priv == NULL)
+			return NULL;
+
+		sna_damage_all(&priv->cpu_damage,
+			       pixmap->drawable.width,
+			       pixmap->drawable.height);
 	}
 
 	if (sna_damage_is_all(&priv->gpu_damage,
@@ -3120,7 +3131,7 @@ static bool upload_inplace(struct sna *sna,
 		return false;
 	}
 
-	if (sna->kgem.has_llc) {
+	if (sna->kgem.has_llc && !priv->flush) {
 		if (priv->cpu_bo) {
 			if (priv->cpu_damage &&
 			    kgem_bo_is_busy(priv->cpu_bo) &&
@@ -3158,7 +3169,6 @@ static bool upload_inplace(struct sna *sna,
 			DBG(("%s? yes, will replace busy GPU\n", __FUNCTION__));
 			return true;
 		}
-
 	}
 
 	DBG(("%s? no\n", __FUNCTION__));
@@ -3698,7 +3708,6 @@ sna_put_image(DrawablePtr drawable, GCPtr gc, int depth,
 	struct sna_pixmap *priv = sna_pixmap(pixmap);
 	RegionRec region;
 	int16_t dx, dy;
-	unsigned hint;
 
 	DBG(("%s((%d, %d)x(%d, %d), depth=%d, format=%d)\n",
 	     __FUNCTION__, x, y, w, h, depth, format));
@@ -3727,47 +3736,39 @@ sna_put_image(DrawablePtr drawable, GCPtr gc, int depth,
 	if (priv == NULL) {
 		DBG(("%s: fallback -- unattached(%d, %d, %d, %d)\n",
 		     __FUNCTION__, x, y, w, h));
-hint_and_fallback:
-		hint = (format == XYPixmap ?
-			MOVE_READ | MOVE_WRITE :
-			drawable_gc_flags(drawable, gc, false));
 		goto fallback;
 	}
 
 	RegionTranslate(&region, dx, dy);
 
 	if (FORCE_FALLBACK)
-		goto hint_and_fallback;
+		goto fallback;
 
 	if (wedged(sna))
-		goto hint_and_fallback;
+		goto fallback;
 
 	if (!ACCEL_PUT_IMAGE)
-		goto hint_and_fallback;
+		goto fallback;
 
 	switch (format) {
 	case ZPixmap:
 		if (!PM_IS_SOLID(drawable, gc->planemask))
-			goto hint_and_fallback;
+			goto fallback;
 
 		if (sna_put_zpixmap_blt(drawable, gc, &region,
 					x, y, w, h,
 					bits, PixmapBytePad(w, depth)))
 			return;
-
-		hint = drawable_gc_flags(drawable, gc, false);
 		break;
 
 	case XYBitmap:
 		if (!PM_IS_SOLID(drawable, gc->planemask))
-			goto hint_and_fallback;
+			goto fallback;
 
 		if (sna_put_xybitmap_blt(drawable, gc, &region,
 					 x, y, w, h,
 					 bits))
 			return;
-
-		hint = drawable_gc_flags(drawable, gc, false);
 		break;
 
 	case XYPixmap:
@@ -3775,8 +3776,6 @@ hint_and_fallback:
 					 x, y, w, h, left,
 					 bits))
 			return;
-
-		hint = MOVE_READ | MOVE_WRITE;
 		break;
 
 	default:
@@ -3789,7 +3788,10 @@ fallback:
 
 	if (!sna_gc_move_to_cpu(gc, drawable, &region))
 		goto out;
-	if (!sna_drawable_move_region_to_cpu(drawable, &region, hint))
+	if (!sna_drawable_move_region_to_cpu(drawable, &region,
+					      format == XYPixmap ?
+					      MOVE_READ | MOVE_WRITE :
+					      drawable_gc_flags(drawable, gc, false)))
 		goto out_gc;
 
 	DBG(("%s: fbPutImage(%d, %d, %d, %d)\n",
@@ -9423,6 +9425,333 @@ sna_pixmap_get_source_bo(PixmapPtr pixmap)
 	return kgem_bo_reference(priv->gpu_bo);
 }
 
+/*
+static bool
+tile(DrawablePtr drawable,
+	struct kgem_bo *bo, struct sna_damage **damage,
+	PixmapPtr tile, const DDXPointRec * const origin, int alu,
+	int n, xRectangle *rect,
+	const BoxRec *extents, unsigned clipped)
+	*/
+
+static bool
+sna_poly_fill_rect_tiled_8x8_blt(DrawablePtr drawable,
+				 struct kgem_bo *bo, struct sna_damage **damage,
+				 struct kgem_bo *tile_bo, GCPtr gc,
+				 int n, xRectangle *r,
+				 const BoxRec *extents, unsigned clipped)
+{
+	PixmapPtr pixmap = get_drawable_pixmap(drawable);
+	struct sna *sna = to_sna_from_pixmap(pixmap);
+	const DDXPointRec * const origin = &gc->patOrg;
+	uint32_t br00, br13;
+	int tx, ty;
+	int16_t dx, dy;
+	uint32_t *b;
+
+	DBG(("%s x %d [(%d, %d)+(%d, %d)...], clipped=%x\n",
+	     __FUNCTION__, n, r->x, r->y, r->width, r->height, clipped));
+
+	kgem_set_mode(&sna->kgem, KGEM_BLT);
+	if (!kgem_check_batch(&sna->kgem, 8+2*3) ||
+	    !kgem_check_reloc(&sna->kgem, 2) ||
+	    !kgem_check_bo_fenced(&sna->kgem, bo)) {
+		_kgem_submit(&sna->kgem);
+		_kgem_set_mode(&sna->kgem, KGEM_BLT);
+	}
+
+	br00 = XY_SCANLINE_BLT;
+	br13 = bo->pitch;
+	if (sna->kgem.gen >= 40 && bo->tiling) {
+		br00 |= BLT_DST_TILED;
+		br13 >>= 2;
+	}
+	br13 |= blt_depth(drawable->depth) << 24;
+	br13 |= fill_ROP[gc->alu] << 16;
+
+	get_drawable_deltas(drawable, pixmap, &dx, &dy);
+	if (!clipped) {
+		dx += drawable->x;
+		dy += drawable->y;
+
+		sna_damage_add_rectangles(damage, r, n, dx, dy);
+		if (n == 1) {
+			tx = (r->x - origin->x) % 8;
+			if (tx < 8)
+				tx = 8 - tx;
+			ty = (r->y - origin->y) % 8;
+			if (ty < 8)
+				ty = 8 - ty;
+
+			b = sna->kgem.batch + sna->kgem.nbatch;
+			b[0] = XY_PAT_BLT | tx << 12 | ty << 8 | 3 << 20 | (br00 & BLT_DST_TILED);
+			b[1] = br13;
+			b[2] = (r->y + dy) << 16 | (r->x + dx);
+			b[3] = (r->y + r->height + dy) << 16 | (r->x + r->width + dx);
+			b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      I915_GEM_DOMAIN_RENDER |
+					      KGEM_RELOC_FENCED,
+					      0);
+			b[5] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 5, tile_bo,
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      KGEM_RELOC_FENCED,
+					      0);
+			sna->kgem.nbatch += 6;
+		} else do {
+			int n_this_time;
+
+			b = sna->kgem.batch + sna->kgem.nbatch;
+			b[0] = XY_SETUP_BLT | 3 << 20;
+			b[1] = br13;
+			b[2] = 0;
+			b[3] = 0;
+			b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      I915_GEM_DOMAIN_RENDER |
+					      KGEM_RELOC_FENCED,
+					      0);
+			b[5] = gc->bgPixel;
+			b[6] = gc->fgPixel;
+			b[7] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 7, tile_bo,
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      KGEM_RELOC_FENCED,
+					      0);
+			sna->kgem.nbatch += 8;
+
+			n_this_time = n;
+			if (3*n_this_time > sna->kgem.surface - sna->kgem.nbatch - KGEM_BATCH_RESERVED)
+				n_this_time = (sna->kgem.surface - sna->kgem.nbatch - KGEM_BATCH_RESERVED) / 3;
+			assert(n_this_time);
+			n -= n_this_time;
+
+			b = sna->kgem.batch + sna->kgem.nbatch;
+			sna->kgem.nbatch += 3*n_this_time;
+			do {
+				assert(r->x + dx >= 0);
+				assert(r->y + dy >= 0);
+				assert(r->x + dx + r->width  <= pixmap->drawable.width);
+				assert(r->y + dy + r->height <= pixmap->drawable.height);
+
+				tx = (r->x - origin->x) % 8;
+				if (tx < 8)
+					tx = 8 - tx;
+				ty = (r->y - origin->y) % 8;
+				if (ty < 8)
+					ty = 8 - ty;
+
+				b[0] = br00 | tx << 12 | ty << 8;
+				b[1] = (r->y + dy) << 16 | (r->x + dx);
+				b[2] = (r->y + r->height + dy) << 16 | (r->x + r->width + dx);
+				b += 3; r++;
+			} while (--n_this_time);
+
+			if (!n)
+				break;
+
+			_kgem_submit(&sna->kgem);
+			_kgem_set_mode(&sna->kgem, KGEM_BLT);
+		} while (1);
+	} else {
+		RegionRec clip;
+
+		region_set(&clip, extents);
+		region_maybe_clip(&clip, gc->pCompositeClip);
+		if (!RegionNotEmpty(&clip))
+			goto done;
+
+		b = sna->kgem.batch + sna->kgem.nbatch;
+		b[0] = XY_SETUP_BLT | 3 << 20;
+		b[1] = br13;
+		b[2] = 0;
+		b[3] = 0;
+		b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+				      I915_GEM_DOMAIN_RENDER << 16 |
+				      I915_GEM_DOMAIN_RENDER |
+				      KGEM_RELOC_FENCED,
+				      0);
+		b[5] = gc->bgPixel;
+		b[6] = gc->fgPixel;
+		b[7] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 7, tile_bo,
+				      I915_GEM_DOMAIN_RENDER << 16 |
+				      KGEM_RELOC_FENCED,
+				      0);
+		sna->kgem.nbatch += 8;
+
+		if (clip.data == NULL) {
+			const BoxRec *c = &clip.extents;
+			while (n--) {
+				BoxRec box;
+
+				box.x1 = r->x + drawable->x;
+				box.y1 = r->y + drawable->y;
+				box.x2 = bound(box.x1, r->width);
+				box.y2 = bound(box.y1, r->height);
+				r++;
+
+				if (box_intersect(&box, c)) {
+					if (!kgem_check_batch(&sna->kgem, 3)) {
+						_kgem_submit(&sna->kgem);
+						_kgem_set_mode(&sna->kgem, KGEM_BLT);
+						b = sna->kgem.batch + sna->kgem.nbatch;
+						b[0] = XY_SETUP_BLT | 3 << 20;
+						b[1] = br13;
+						b[2] = 0;
+						b[3] = 0;
+						b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+								      I915_GEM_DOMAIN_RENDER << 16 |
+								      I915_GEM_DOMAIN_RENDER |
+								      KGEM_RELOC_FENCED,
+								      0);
+						b[5] = gc->bgPixel;
+						b[6] = gc->fgPixel;
+						b[7] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 7, tile_bo,
+								      I915_GEM_DOMAIN_RENDER << 16 |
+								      KGEM_RELOC_FENCED,
+								      0);
+						sna->kgem.nbatch += 8;
+					}
+
+					ty = (box.y1 - drawable->y - origin->y) % 8;
+					if (ty < 0)
+						ty = 8 - ty;
+
+					tx = (box.x1 - drawable->x - origin->x) % 8;
+					if (tx < 0)
+						tx = 8 - tx;
+
+					b = sna->kgem.batch + sna->kgem.nbatch;
+					b[0] = br00 | tx << 12 | ty << 8;
+					b[1] = box.y1 << 16 | box.x1;
+					b[2] = box.y2 << 16 | box.x2;
+					sna->kgem.nbatch += 3;
+				}
+			}
+		} else {
+			const BoxRec * const clip_start = RegionBoxptr(&clip);
+			const BoxRec * const clip_end = clip_start + clip.data->numRects;
+			const BoxRec *c;
+
+			do {
+				BoxRec box;
+
+				box.x1 = r->x + drawable->x;
+				box.y1 = r->y + drawable->y;
+				box.x2 = bound(box.x1, r->width);
+				box.y2 = bound(box.y1, r->height);
+				r++;
+
+				c = find_clip_box_for_y(clip_start,
+							clip_end,
+							box.y1);
+				while (c != clip_end) {
+					BoxRec bb;
+
+					if (box.y2 <= c->y1)
+						break;
+
+					bb = box;
+					if (box_intersect(&bb, c++)) {
+						if (!kgem_check_batch(&sna->kgem, 3)) {
+							_kgem_submit(&sna->kgem);
+							_kgem_set_mode(&sna->kgem, KGEM_BLT);
+							b = sna->kgem.batch + sna->kgem.nbatch;
+							b[0] = XY_SETUP_BLT | 3 << 20;
+							b[1] = br13;
+							b[2] = 0;
+							b[3] = 0;
+							b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+									      I915_GEM_DOMAIN_RENDER << 16 |
+									      I915_GEM_DOMAIN_RENDER |
+									      KGEM_RELOC_FENCED,
+									      0);
+							b[5] = gc->bgPixel;
+							b[6] = gc->fgPixel;
+							b[7] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 7, tile_bo,
+									      I915_GEM_DOMAIN_RENDER << 16 |
+									      KGEM_RELOC_FENCED,
+									      0);
+							sna->kgem.nbatch += 8;
+						}
+
+						ty = (bb.y1 - drawable->y - origin->y) % 8;
+						if (ty < 0)
+							ty = 8 - ty;
+
+						tx = (bb.x1 - drawable->x - origin->x) % 8;
+						if (tx < 0)
+							tx = 8 - tx;
+
+						b = sna->kgem.batch + sna->kgem.nbatch;
+						b[0] = br00 | tx << 12 | ty << 8;
+						b[1] = bb.y1 << 16 | bb.x1;
+						b[2] = bb.y2 << 16 | bb.x2;
+						sna->kgem.nbatch += 3;
+					}
+				}
+			} while (--n);
+		}
+	}
+done:
+	assert_pixmap_damage(pixmap);
+	return true;
+}
+
+static bool
+sna_poly_fill_rect_tiled_nxm_blt(DrawablePtr drawable,
+				 struct kgem_bo *bo,
+				 struct sna_damage **damage,
+				 GCPtr gc, int n, xRectangle *rect,
+				 const BoxRec *extents, unsigned clipped)
+{
+	PixmapPtr pixmap = get_drawable_pixmap(drawable);
+	struct sna *sna = to_sna_from_pixmap(pixmap);
+	PixmapPtr tile = gc->tile.pixmap;
+	struct kgem_bo *upload;
+	int w, h, cpp;
+	void *ptr;
+	bool ret;
+
+	DBG(("%s: %dx%d\n", __FUNCTION__,
+	     tile->drawable.width, tile->drawable.height));
+
+	if (!sna_pixmap_move_to_cpu(tile, MOVE_READ))
+		return false;
+
+	upload = kgem_create_buffer(&sna->kgem, 8*tile->drawable.bitsPerPixel,
+				    KGEM_BUFFER_WRITE_INPLACE,
+				    &ptr);
+	if (upload == NULL)
+		return false;
+
+	assert(tile->drawable.height && tile->drawable.height <= 8);
+	assert(tile->drawable.width && tile->drawable.width <= 8);
+
+	cpp = tile->drawable.bitsPerPixel/8;
+	for (h = 0; h < tile->drawable.height; h++) {
+		uint8_t *src = (uint8_t *)tile->devPrivate.ptr + tile->devKind*h;
+		uint8_t *dst = (uint8_t *)ptr + 8*cpp*h;
+
+		w = tile->drawable.width*cpp;
+		memcpy(dst, src, w);
+		while (w < 8*cpp) {
+			memcpy(dst+w, dst, w);
+			w *= 2;
+		}
+	}
+	while (h < 8) {
+		memcpy((uint8_t*)ptr + h*w, ptr, h*w);
+		h *= 2;
+	}
+
+	ret = sna_poly_fill_rect_tiled_8x8_blt(drawable, bo, damage,
+					       upload, gc, n, rect,
+					       extents, clipped);
+
+	kgem_bo_destroy(&sna->kgem, upload);
+	return ret;
+}
+
 static bool
 sna_poly_fill_rect_tiled_blt(DrawablePtr drawable,
 			     struct kgem_bo *bo,
@@ -9458,6 +9787,25 @@ sna_poly_fill_rect_tiled_blt(DrawablePtr drawable,
 	 * Also we can do the lg2 reduction for BLT and use repeat modes for
 	 * RENDER.
 	 */
+
+	if ((tile->drawable.width | tile->drawable.height) == 8) {
+		bool ret;
+
+		tile_bo = sna_pixmap_get_source_bo(tile);
+		ret = sna_poly_fill_rect_tiled_8x8_blt(drawable, bo, damage,
+						       tile_bo, gc, n, rect,
+						       extents, clipped);
+		kgem_bo_destroy(&sna->kgem, tile_bo);
+
+		return ret;
+	}
+
+	if ((tile->drawable.width | tile->drawable.height) <= 0xc &&
+	    is_power_of_two(tile->drawable.width) &&
+	    is_power_of_two(tile->drawable.height))
+		return sna_poly_fill_rect_tiled_nxm_blt(drawable, bo, damage,
+							gc, n, rect,
+							extents, clipped);
 
 	tile_bo = sna_pixmap_get_source_bo(tile);
 	if (tile_bo == NULL) {
@@ -9679,6 +10027,7 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 	struct sna *sna = to_sna_from_pixmap(pixmap);
 	uint32_t pat[2] = {0, 0}, br00, br13;
 	int16_t dx, dy;
+	uint32_t *b;
 
 	DBG(("%s: alu=%d, upload (%d, %d), (%d, %d), origin (%d, %d)\n",
 	     __FUNCTION__, gc->alu,
@@ -9691,8 +10040,7 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 		unsigned px = (0 - gc->patOrg.x - dx) & 7;
 		unsigned py = (0 - gc->patOrg.y - dy) & 7;
 		DBG(("%s: pat offset (%d, %d)\n", __FUNCTION__ ,px, py));
-		br00 = XY_MONO_PAT | px << 12 | py << 8 | 3 << 20;
-
+		br00 = XY_SCANLINE_BLT | px << 12 | py << 8 | 3 << 20;
 		br13 = bo->pitch;
 		if (sna->kgem.gen >= 40 && bo->tiling) {
 			br00 |= BLT_DST_TILED;
@@ -9715,26 +10063,24 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 	}
 
 	kgem_set_mode(&sna->kgem, KGEM_BLT);
+	if (!kgem_check_batch(&sna->kgem, 9 + 2*3) ||
+	    !kgem_check_bo_fenced(&sna->kgem, bo) ||
+	    !kgem_check_reloc(&sna->kgem, 1)) {
+		_kgem_submit(&sna->kgem);
+		_kgem_set_mode(&sna->kgem, KGEM_BLT);
+	}
+
 	if (!clipped) {
 		dx += drawable->x;
 		dy += drawable->y;
 
 		sna_damage_add_rectangles(damage, r, n, dx, dy);
-		do {
-			uint32_t *b;
-
-			DBG(("%s: rect (%d, %d)x(%d, %d)\n",
+		if (n == 1) {
+			DBG(("%s: single unclipped rect (%d, %d)x(%d, %d)\n",
 			     __FUNCTION__, r->x + dx, r->y + dy, r->width, r->height));
 
-			if (!kgem_check_batch(&sna->kgem, 9) ||
-			    !kgem_check_bo_fenced(&sna->kgem, bo) ||
-			    !kgem_check_reloc(&sna->kgem, 1)) {
-				_kgem_submit(&sna->kgem);
-				_kgem_set_mode(&sna->kgem, KGEM_BLT);
-			}
-
 			b = sna->kgem.batch + sna->kgem.nbatch;
-			b[0] = br00;
+			b[0] = XY_MONO_PAT | (br00 & (BLT_DST_TILED | 0x7<<12 | 0x7<<8)) | 3<<20;
 			b[1] = br13;
 			b[2] = (r->y + dy) << 16 | (r->x + dx);
 			b[3] = (r->y + r->height + dy) << 16 | (r->x + r->width + dx);
@@ -9748,9 +10094,54 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 			b[7] = pat[0];
 			b[8] = pat[1];
 			sna->kgem.nbatch += 9;
+		} else do {
+			int n_this_time;
 
-			r++;
-		} while (--n);
+			b = sna->kgem.batch + sna->kgem.nbatch;
+			b[0] = XY_SETUP_MONO_PATTERN_SL_BLT | 3 << 20;
+			b[1] = br13;
+			b[2] = 0;
+			b[3] = 0;
+			b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      I915_GEM_DOMAIN_RENDER |
+					      KGEM_RELOC_FENCED,
+					      0);
+			b[5] = gc->bgPixel;
+			b[6] = gc->fgPixel;
+			b[7] = pat[0];
+			b[8] = pat[1];
+			sna->kgem.nbatch += 9;
+
+			n_this_time = n;
+			if (3*n_this_time > sna->kgem.surface - sna->kgem.nbatch - KGEM_BATCH_RESERVED)
+				n_this_time = (sna->kgem.surface - sna->kgem.nbatch - KGEM_BATCH_RESERVED) / 3;
+			assert(n_this_time);
+			n -= n_this_time;
+
+			b = sna->kgem.batch + sna->kgem.nbatch;
+			sna->kgem.nbatch += 3 * n_this_time;
+			do {
+				DBG(("%s: rect (%d, %d)x(%d, %d)\n",
+				     __FUNCTION__, r->x + dx, r->y + dy, r->width, r->height));
+				assert(r->x + dx >= 0);
+				assert(r->y + dy >= 0);
+				assert(r->x + dx + r->width  <= pixmap->drawable.width);
+				assert(r->y + dy + r->height <= pixmap->drawable.height);
+
+				b[0] = br00;
+				b[1] = (r->y + dy) << 16 | (r->x + dx);
+				b[2] = (r->y + r->height + dy) << 16 | (r->x + r->width + dx);
+
+				b += 3; r++;
+			} while(--n_this_time);
+
+			if (!n)
+				break;
+
+			_kgem_submit(&sna->kgem);
+			_kgem_set_mode(&sna->kgem, KGEM_BLT);
+		} while (1);
 	} else {
 		RegionRec clip;
 
@@ -9759,7 +10150,21 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 		if (!RegionNotEmpty(&clip))
 			return true;
 
-		/* XXX XY_SETUP_BLT + XY_SCANLINE_BLT */
+		b = sna->kgem.batch + sna->kgem.nbatch;
+		b[0] = XY_SETUP_MONO_PATTERN_SL_BLT | 3 << 20;
+		b[1] = br13;
+		b[2] = 0;
+		b[3] = 0;
+		b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+				      I915_GEM_DOMAIN_RENDER << 16 |
+				      I915_GEM_DOMAIN_RENDER |
+				      KGEM_RELOC_FENCED,
+				      0);
+		b[5] = gc->bgPixel;
+		b[6] = gc->fgPixel;
+		b[7] = pat[0];
+		b[8] = pat[1];
+		sna->kgem.nbatch += 9;
 
 		if (clip.data == NULL) {
 			do {
@@ -9772,30 +10177,32 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 				r++;
 
 				if (box_intersect(&box, &clip.extents)) {
-					uint32_t *b;
-
-					if (!kgem_check_batch(&sna->kgem, 9) ||
-					    !kgem_check_bo_fenced(&sna->kgem, bo) ||
-					    !kgem_check_reloc(&sna->kgem, 1)) {
+					if (!kgem_check_batch(&sna->kgem, 3)) {
 						_kgem_submit(&sna->kgem);
 						_kgem_set_mode(&sna->kgem, KGEM_BLT);
+
+						b = sna->kgem.batch + sna->kgem.nbatch;
+						b[0] = XY_SETUP_MONO_PATTERN_SL_BLT | 3 << 20;
+						b[1] = br13;
+						b[2] = 0;
+						b[3] = 0;
+						b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+								      I915_GEM_DOMAIN_RENDER << 16 |
+								      I915_GEM_DOMAIN_RENDER |
+								      KGEM_RELOC_FENCED,
+								      0);
+						b[5] = gc->bgPixel;
+						b[6] = gc->fgPixel;
+						b[7] = pat[0];
+						b[8] = pat[1];
+						sna->kgem.nbatch += 9;
 					}
 
 					b = sna->kgem.batch + sna->kgem.nbatch;
+					sna->kgem.nbatch += 3;
 					b[0] = br00;
-					b[1] = br13;
-					b[2] = (box.y1 + dy) << 16 | (box.x1 + dx);
-					b[3] = (box.y2 + dy) << 16 | (box.x2 + dx);
-					b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
-							      I915_GEM_DOMAIN_RENDER << 16 |
-							      I915_GEM_DOMAIN_RENDER |
-							      KGEM_RELOC_FENCED,
-							      0);
-					b[5] = gc->bgPixel;
-					b[6] = gc->fgPixel;
-					b[7] = pat[0];
-					b[8] = pat[1];
-					sna->kgem.nbatch += 9;
+					b[1] = (box.y1 + dy) << 16 | (box.x1 + dx);
+					b[2] = (box.y2 + dy) << 16 | (box.x2 + dx);
 				}
 			} while (--n);
 		} else {
@@ -9822,32 +10229,33 @@ sna_poly_fill_rect_stippled_8x8_blt(DrawablePtr drawable,
 
 					bb = box;
 					if (box_intersect(&bb, c++)) {
-						uint32_t *b;
-
-						if (!kgem_check_batch(&sna->kgem, 9) ||
-						    !kgem_check_bo_fenced(&sna->kgem, bo) ||
-						    !kgem_check_reloc(&sna->kgem, 1)) {
+						if (!kgem_check_batch(&sna->kgem, 3)) {
 							_kgem_submit(&sna->kgem);
 							_kgem_set_mode(&sna->kgem, KGEM_BLT);
+
+							b = sna->kgem.batch + sna->kgem.nbatch;
+							b[0] = XY_SETUP_MONO_PATTERN_SL_BLT | 3 << 20;
+							b[1] = br13;
+							b[2] = 0;
+							b[3] = 0;
+							b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
+									      I915_GEM_DOMAIN_RENDER << 16 |
+									      I915_GEM_DOMAIN_RENDER |
+									      KGEM_RELOC_FENCED,
+									      0);
+							b[5] = gc->bgPixel;
+							b[6] = gc->fgPixel;
+							b[7] = pat[0];
+							b[8] = pat[1];
+							sna->kgem.nbatch += 9;
 						}
 
 						b = sna->kgem.batch + sna->kgem.nbatch;
+						sna->kgem.nbatch += 3;
 						b[0] = br00;
-						b[1] = br13;
-						b[2] = (bb.y1 + dy) << 16 | (bb.x1 + dx);
-						b[3] = (bb.y2 + dy) << 16 | (bb.x2 + dx);
-						b[4] = kgem_add_reloc(&sna->kgem, sna->kgem.nbatch + 4, bo,
-								      I915_GEM_DOMAIN_RENDER << 16 |
-								      I915_GEM_DOMAIN_RENDER |
-								      KGEM_RELOC_FENCED,
-								      0);
-						b[5] = gc->bgPixel;
-						b[6] = gc->fgPixel;
-						b[7] = pat[0];
-						b[8] = pat[1];
-						sna->kgem.nbatch += 9;
+						b[1] = (bb.y1 + dy) << 16 | (bb.x1 + dx);
+						b[2] = (bb.y2 + dy) << 16 | (bb.x2 + dx);
 					}
-
 				}
 			} while (--n);
 		}
@@ -10440,6 +10848,7 @@ sna_poly_fill_rect_stippled_n_box__imm(struct sna *sna,
 static void
 sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 				  struct kgem_bo *bo,
+				  struct kgem_bo **tile,
 				  uint32_t br00, uint32_t br13,
 				  const GC *gc,
 				  const BoxRec *box,
@@ -10471,6 +10880,7 @@ sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 		row = oy * stride;
 		for (x1 = box->x1; x1 < box->x2; x1 = x2) {
 			int bx1, bx2, bw, bh, len, ox;
+			bool use_tile;
 
 			x2 = box->x2;
 			ox = (x1 - origin->x) % w;
@@ -10483,11 +10893,14 @@ sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 				x2 = x1 + bx2-ox;
 			}
 
-			DBG(("%s: box((%d, %d)x(%d, %d)) origin=(%d, %d), pat=(%d, %d), up=(%d, %d), stipple=%dx%d\n",
+			use_tile = y2-y1 == h && x2-x1 == w;
+
+			DBG(("%s: box((%d, %d)x(%d, %d)) origin=(%d, %d), pat=(%d, %d), up=(%d, %d), stipple=%dx%d, full tile?=%d\n",
 			     __FUNCTION__,
 			     x1, y1, x2-x1, y2-y1,
 			     origin->x, origin->y,
-			     ox, oy, bx1, bx2, w, h));
+			     ox, oy, bx1, bx2, w, h,
+			     use_tile));
 
 			bw = (bx2 - bx1 + 7)/8;
 			bw = ALIGN(bw, 2);
@@ -10504,7 +10917,7 @@ sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 
 			b = sna->kgem.batch + sna->kgem.nbatch;
 
-			if (len <= 128) {
+			if (!use_tile && len <= 128) {
 				uint8_t *dst, *src;
 
 				b[0] = XY_MONO_SRC_COPY_IMM;
@@ -10540,15 +10953,20 @@ sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 					src += len;
 				} while (--bh);
 			} else {
+				bool has_tile = use_tile && *tile;
 				struct kgem_bo *upload;
 				uint8_t *dst, *src;
 				void *ptr;
 
-				upload = kgem_create_buffer(&sna->kgem, bw*bh,
-							    KGEM_BUFFER_WRITE_INPLACE,
-							    &ptr);
-				if (!upload)
-					return;
+				if (has_tile) {
+					upload = kgem_bo_reference(*tile);
+				} else {
+					upload = kgem_create_buffer(&sna->kgem, bw*bh,
+								    KGEM_BUFFER_WRITE_INPLACE,
+								    &ptr);
+					if (!upload)
+						return;
+				}
 
 				b = sna->kgem.batch + sna->kgem.nbatch;
 				b[0] = br00 | (ox & 7) << 17;
@@ -10571,20 +10989,24 @@ sna_poly_fill_rect_stippled_n_box(struct sna *sna,
 
 				sna->kgem.nbatch += 8;
 
-				dst = ptr;
-				len = stride;
-				src = gc->stipple->devPrivate.ptr;
-				src += row + (ox >> 3);
-				len -= bw;
-				do {
-					int i = bw;
+				if (!has_tile) {
+					dst = ptr;
+					len = stride;
+					src = gc->stipple->devPrivate.ptr;
+					src += row + (ox >> 3);
+					len -= bw;
 					do {
-						*dst++ = byte_reverse(*src++);
-						*dst++ = byte_reverse(*src++);
-						i -= 2;
-					} while (i);
-					src += len;
-				} while (--bh);
+						int i = bw;
+						do {
+							*dst++ = byte_reverse(*src++);
+							*dst++ = byte_reverse(*src++);
+							i -= 2;
+						} while (i);
+						src += len;
+					} while (--bh);
+					if (use_tile)
+						*tile = kgem_bo_reference(upload);
+				}
 
 				kgem_bo_destroy(&sna->kgem, upload);
 			}
@@ -10740,6 +11162,7 @@ sna_poly_fill_rect_stippled_n_blt(DrawablePtr drawable,
 	PixmapPtr pixmap = get_drawable_pixmap(drawable);
 	struct sna *sna = to_sna_from_pixmap(pixmap);
 	DDXPointRec origin = gc->patOrg;
+	struct kgem_bo *tile = NULL;
 	int16_t dx, dy;
 	uint32_t br00, br13;
 
@@ -10784,7 +11207,7 @@ sna_poly_fill_rect_stippled_n_blt(DrawablePtr drawable,
 			box.x2 = box.x1 + r->width;
 			box.y2 = box.y1 + r->height;
 
-			sna_poly_fill_rect_stippled_n_box(sna, bo,
+			sna_poly_fill_rect_stippled_n_box(sna, bo, &tile,
 							  br00, br13, gc,
 							  &box, &origin);
 			r++;
@@ -10822,7 +11245,7 @@ sna_poly_fill_rect_stippled_n_blt(DrawablePtr drawable,
 				box.x1 += dx; box.x2 += dx;
 				box.y1 += dy; box.y2 += dy;
 
-				sna_poly_fill_rect_stippled_n_box(sna, bo,
+				sna_poly_fill_rect_stippled_n_box(sna, bo, &tile,
 								  br00, br13, gc,
 								  &box, &origin);
 			} while (--n);
@@ -10861,7 +11284,7 @@ sna_poly_fill_rect_stippled_n_blt(DrawablePtr drawable,
 					box.x1 += dx; box.x2 += dx;
 					box.y1 += dy; box.y2 += dy;
 
-					sna_poly_fill_rect_stippled_n_box(sna, bo,
+					sna_poly_fill_rect_stippled_n_box(sna, bo, &tile,
 									  br00, br13, gc,
 									  &box, &origin);
 				}
@@ -10870,6 +11293,8 @@ sna_poly_fill_rect_stippled_n_blt(DrawablePtr drawable,
 	}
 
 	assert_pixmap_damage(pixmap);
+	if (tile)
+		kgem_bo_destroy(&sna->kgem, tile);
 	sna->blt_state.fill_bo = 0;
 	return true;
 }
@@ -12836,6 +13261,7 @@ sna_accel_flush_callback(CallbackListPtr *list,
 	 * by checking for outgoing damage events or sync replies. Tricky,
 	 * and doesn't appear to mitigate the performance loss.
 	 */
+	DBG(("%s: flush?=%d\n", __FUNCTION__, sna->kgem.flush));
 	if (!sna->kgem.flush)
 		return;
 
@@ -12855,7 +13281,8 @@ sna_accel_flush_callback(CallbackListPtr *list,
 		} else {
 			DBG(("%s: flushing DRI pixmap=%ld\n", __FUNCTION__,
 			     priv->pixmap->drawable.serialNumber));
-			ret = sna_pixmap_move_to_gpu(priv->pixmap, MOVE_READ);
+			ret = sna_pixmap_move_to_gpu(priv->pixmap,
+						     MOVE_READ | __MOVE_FORCE);
 		}
 		(void)ret;
 	}
@@ -12961,7 +13388,8 @@ static bool sna_accel_do_flush(struct sna *sna)
 	} else {
 		if (!start_flush(sna, priv)) {
 			DBG(("%s -- no pending write to scanout\n", __FUNCTION__));
-			kgem_bo_flush(&sna->kgem, priv->gpu_bo);
+			if (priv)
+				kgem_bo_flush(&sna->kgem, priv->gpu_bo);
 		} else {
 			sna->timer_active |= 1 << FLUSH_TIMER;
 			sna->timer_expire[FLUSH_TIMER] =
@@ -13407,23 +13835,23 @@ bool sna_accel_init(ScreenPtr screen, struct sna *sna)
 	no_render_init(sna);
 
 #if !DEBUG_NO_RENDER
-	if (sna->chipset.info->gen >= 80) {
-	} else if (sna->chipset.info->gen >= 70) {
+	if (sna->info->gen >= 80) {
+	} else if (sna->info->gen >= 70) {
 		if ((sna->have_render = gen7_render_init(sna)))
 			backend = "IvyBridge";
-	} else if (sna->chipset.info->gen >= 60) {
+	} else if (sna->info->gen >= 60) {
 		if ((sna->have_render = gen6_render_init(sna)))
 			backend = "SandyBridge";
-	} else if (sna->chipset.info->gen >= 50) {
+	} else if (sna->info->gen >= 50) {
 		if ((sna->have_render = gen5_render_init(sna)))
 			backend = "Ironlake";
-	} else if (sna->chipset.info->gen >= 40) {
+	} else if (sna->info->gen >= 40) {
 		if ((sna->have_render = gen4_render_init(sna)))
 			backend = "Broadwater";
-	} else if (sna->chipset.info->gen >= 30) {
+	} else if (sna->info->gen >= 30) {
 		if ((sna->have_render = gen3_render_init(sna)))
 			backend = "gen3";
-	} else if (sna->chipset.info->gen >= 20) {
+	} else if (sna->info->gen >= 20) {
 		if ((sna->have_render = gen2_render_init(sna)))
 			backend = "gen2";
 	}
