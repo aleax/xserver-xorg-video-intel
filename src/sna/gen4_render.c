@@ -80,7 +80,7 @@
 #define URB_CS_ENTRIES	      0
 
 #define URB_VS_ENTRY_SIZE     1	// each 512-bit row
-#define URB_VS_ENTRIES	      8	// we needs at least 8 entries
+#define URB_VS_ENTRIES	      32	// we needs at least 8 entries
 
 #define URB_GS_ENTRY_SIZE     0
 #define URB_GS_ENTRIES	      0
@@ -89,7 +89,7 @@
 #define URB_CLIP_ENTRIES      0
 
 #define URB_SF_ENTRY_SIZE     2
-#define URB_SF_ENTRIES	      1
+#define URB_SF_ENTRIES	      8
 
 /*
  * this program computes dA/dx and dA/dy for the texture coordinates along
@@ -97,10 +97,18 @@
  */
 
 #define SF_KERNEL_NUM_GRF  16
-#define SF_MAX_THREADS	   2
 
 #define PS_KERNEL_NUM_GRF   32
-#define PS_MAX_THREADS	    48
+
+static const struct gt_info {
+	uint32_t max_sf_threads;
+	uint32_t max_wm_threads;
+	uint32_t urb_size;
+} gen4_gt_info = {
+	16, 32, 256,
+}, g4x_gt_info = {
+	32, 50, 384,
+};
 
 static const uint32_t sf_kernel[][4] = {
 #include "exa_sf.g4b"
@@ -1117,7 +1125,7 @@ static bool gen4_rectangle_begin(struct sna *sna,
 static int gen4_get_rectangles__flush(struct sna *sna,
 				      const struct sna_composite_op *op)
 {
-	if (!kgem_check_batch(&sna->kgem, 25))
+	if (!kgem_check_batch(&sna->kgem, (FLUSH_EVERY_VERTEX || op->need_magic_ca_pass) ? 25 : 6))
 		return 0;
 	if (!kgem_check_reloc_and_exec(&sna->kgem, 1))
 		return 0;
@@ -1137,9 +1145,9 @@ inline static int gen4_get_rectangles(struct sna *sna,
 
 start:
 	rem = vertex_space(sna);
-	if (rem < 3*op->floats_per_vertex) {
+	if (rem < op->floats_per_rect) {
 		DBG(("flushing vbo for %s: %d < %d\n",
-		     __FUNCTION__, rem, 3*op->floats_per_vertex));
+		     __FUNCTION__, rem, op->floats_per_rect));
 		rem = gen4_get_rectangles__flush(sna, op);
 		if (unlikely(rem == 0))
 			goto flush;
@@ -1149,8 +1157,8 @@ start:
 		     !gen4_rectangle_begin(sna, op)))
 		goto flush;
 
-	if (want > 1 && want * op->floats_per_vertex*3 > rem)
-		want = rem / (3*op->floats_per_vertex);
+	if (want > 1 && want * op->floats_per_rect > rem)
+		want = rem / op->floats_per_rect;
 
 	sna->render.vertex_index += 3*want;
 	return want;
@@ -1165,8 +1173,9 @@ flush:
 	goto start;
 }
 
-static uint32_t *gen4_composite_get_binding_table(struct sna *sna,
-						  uint16_t *offset)
+static uint32_t *
+gen4_composite_get_binding_table(struct sna *sna,
+				 uint16_t *offset)
 {
 	sna->kgem.surface -=
 		sizeof(struct gen4_surface_state_padded) / sizeof(uint32_t);
@@ -1280,7 +1289,7 @@ static void
 gen4_align_vertex(struct sna *sna, const struct sna_composite_op *op)
 {
 	if (op->floats_per_vertex != sna->render_state.gen4.floats_per_vertex) {
-		if (sna->render.vertex_size - sna->render.vertex_used < 6*op->floats_per_vertex)
+		if (sna->render.vertex_size - sna->render.vertex_used < 2*op->floats_per_rect)
 			gen4_vertex_finish(sna);
 
 		DBG(("aligning vertex: was %d, now %d floats per vertex, %d->%d\n",
@@ -1327,8 +1336,8 @@ gen4_emit_pipelined_pointers(struct sna *sna,
 	     kernel, blend, op->has_component_alpha, (int)op->dst.format));
 
 	sp = SAMPLER_OFFSET(op->src.filter, op->src.repeat,
-			      op->mask.filter, op->mask.repeat,
-			      kernel);
+			    op->mask.filter, op->mask.repeat,
+			    kernel);
 	bp = gen4_get_blend(blend, op->has_component_alpha, op->dst.format);
 
 	key = op->mask.bo != NULL;
@@ -1363,7 +1372,7 @@ gen4_emit_drawing_rectangle(struct sna *sna, const struct sna_composite_op *op)
 	sna->render_state.gen4.drawrect_limit = limit;
 
 	OUT_BATCH(GEN4_3DSTATE_DRAWING_RECTANGLE | (4 - 2));
-	OUT_BATCH(0x00000000);
+	OUT_BATCH(0);
 	OUT_BATCH(limit);
 	OUT_BATCH(offset);
 }
@@ -1705,11 +1714,14 @@ gen4_render_video(struct sna *sna,
 
 	tmp.src.filter = SAMPLER_FILTER_BILINEAR;
 	tmp.src.repeat = SAMPLER_EXTEND_PAD;
+	tmp.src.bo = frame->bo;
+	tmp.mask.bo = NULL;
 	tmp.u.gen4.wm_kernel =
 		is_planar_fourcc(frame->id) ? WM_KERNEL_VIDEO_PLANAR : WM_KERNEL_VIDEO_PACKED;
+	tmp.u.gen4.ve_id = 1;
 	tmp.is_affine = true;
 	tmp.floats_per_vertex = 3;
-	tmp.u.gen4.ve_id = 1;
+	tmp.floats_per_rect = 9;
 	tmp.priv = frame;
 
 	if (!kgem_check_bo(&sna->kgem, tmp.dst.bo, frame->bo, NULL)) {
@@ -2070,13 +2082,7 @@ picture_is_cpu(PicturePtr picture)
 	if (!picture->pDrawable)
 		return false;
 
-	/* If it is a solid, try to use the render paths */
-	if (picture->pDrawable->width == 1 &&
-	    picture->pDrawable->height == 1 &&
-	    picture->repeat)
-		return false;
-
-	return is_cpu(picture->pDrawable);
+	return is_cpu(picture->pDrawable) || is_dirty(picture->pDrawable);
 }
 
 static inline bool prefer_blt(struct sna *sna)
@@ -2091,7 +2097,7 @@ static inline bool prefer_blt(struct sna *sna)
 
 static bool
 try_blt(struct sna *sna,
-	PicturePtr source,
+	PicturePtr dst, PicturePtr src,
 	int width, int height)
 {
 	if (prefer_blt(sna)) {
@@ -2105,8 +2111,15 @@ try_blt(struct sna *sna,
 		return true;
 	}
 
+	if (too_large(dst->pDrawable->width, dst->pDrawable->height))
+		return true;
+
+	/* The blitter is much faster for solids */
+	if (sna_picture_is_solid(src, NULL))
+		return true;
+
 	/* is the source picture only in cpu memory e.g. a shm pixmap? */
-	return picture_is_cpu(source);
+	return picture_is_cpu(src);
 }
 
 static bool
@@ -2136,7 +2149,7 @@ untransformed(PicturePtr p)
 static bool
 need_upload(PicturePtr p)
 {
-	return p->pDrawable && unattached(p->pDrawable) && untransformed(p);
+	return p->pDrawable && untransformed(p) && is_cpu(p->pDrawable);
 }
 
 static bool
@@ -2226,12 +2239,12 @@ gen4_composite_fallback(struct sna *sna,
 		return false;
 	}
 
-	if (!src_fallback) {
+	if (src_pixmap && !src_fallback) {
 		DBG(("%s: src is already on the GPU, try to use GPU\n",
 		     __FUNCTION__));
 		return false;
 	}
-	if (mask && !mask_fallback) {
+	if (mask_pixmap && !mask_fallback) {
 		DBG(("%s: mask is already on the GPU, try to use GPU\n",
 		     __FUNCTION__));
 		return false;
@@ -2247,7 +2260,7 @@ gen4_composite_fallback(struct sna *sna,
 		return true;
 	}
 
-	if (mask && mask_fallback) {
+	if (mask_fallback) {
 		DBG(("%s: dst is on the CPU and mask will fallback\n",
 		     __FUNCTION__));
 		return true;
@@ -2350,7 +2363,7 @@ gen4_render_composite(struct sna *sna,
 #endif
 
 	if (mask == NULL &&
-	    try_blt(sna, src, width, height) &&
+	    try_blt(sna, dst, src, width, height) &&
 	    sna_blt_composite(sna, op,
 			      src, dst,
 			      src_x, src_y,
@@ -2456,11 +2469,9 @@ gen4_render_composite(struct sna *sna,
 		else if (tmp->src.is_affine)
 			tmp->prim_emit = gen4_emit_composite_primitive_affine_source;
 
-		tmp->mask.filter = SAMPLER_FILTER_NEAREST;
-		tmp->mask.repeat = SAMPLER_EXTEND_NONE;
-
 		tmp->floats_per_vertex = 3 + !tmp->is_affine;
 	}
+	tmp->floats_per_rect = 3*tmp->floats_per_vertex;
 
 	tmp->u.gen4.wm_kernel =
 		gen4_choose_composite_kernel(tmp->op,
@@ -2697,7 +2708,7 @@ gen4_render_composite_spans_done(struct sna *sna,
 static bool
 gen4_check_composite_spans(struct sna *sna,
 			   uint8_t op, PicturePtr src, PicturePtr dst,
-			   int16_t width,  int16_t height,
+			   int16_t width, int16_t height,
 			   unsigned flags)
 {
 	if ((flags & COMPOSITE_SPANS_RECTILINEAR) == 0)
@@ -2709,7 +2720,7 @@ gen4_check_composite_spans(struct sna *sna,
 	if (gen4_composite_fallback(sna, src, NULL, dst))
 		return false;
 
-	if (!is_gpu(dst->pDrawable))
+	if (need_tiling(sna, width, height) && !is_gpu(dst->pDrawable))
 		return false;
 
 	return true;
@@ -2991,9 +3002,8 @@ fallback_blt:
 					       extents.x1 + src_dx,
 					       extents.y1 + src_dy,
 					       extents.x2 - extents.x1,
-					       extents.y2 - extents.y1)) {
+					       extents.y2 - extents.y1))
 			goto fallback_tiled_dst;
-		}
 	} else {
 		tmp.src.bo = kgem_bo_reference(src_bo);
 		tmp.src.width  = src->drawable.width;
@@ -3003,10 +3013,9 @@ fallback_blt:
 		tmp.src.scale[1] = 1.f/src->drawable.height;
 	}
 
-	tmp.mask.bo = NULL;
-
 	tmp.is_affine = true;
 	tmp.floats_per_vertex = 3;
+	tmp.floats_per_rect = 9;
 	tmp.u.gen4.wm_kernel = WM_KERNEL;
 	tmp.u.gen4.ve_id = 1;
 
@@ -3033,6 +3042,8 @@ fallback_blt:
 				     box->x1 + dst_dx, box->y1 + dst_dy);
 		box++;
 	} while (--n);
+
+	gen4_vertex_flush(sna);
 	sna_render_composite_redirect_done(sna, &tmp);
 	kgem_bo_destroy(&sna->kgem, tmp.src.bo);
 	return true;
@@ -3107,6 +3118,7 @@ fallback:
 				    dst->drawable.bitsPerPixel,
 				    op);
 	}
+
 	if (dst->drawable.depth == src->drawable.depth) {
 		op->base.dst.format = sna_render_format_for_depth(dst->drawable.depth);
 		op->base.src.pict_format = op->base.dst.format;
@@ -3134,10 +3146,9 @@ fallback:
 	op->base.src.filter = SAMPLER_FILTER_NEAREST;
 	op->base.src.repeat = SAMPLER_EXTEND_NONE;
 
-	op->base.mask.bo = NULL;
-
 	op->base.is_affine = true;
 	op->base.floats_per_vertex = 3;
+	op->base.floats_per_rect = 9;
 	op->base.u.gen4.wm_kernel = WM_KERNEL;
 	op->base.u.gen4.ve_id = 1;
 
@@ -3145,6 +3156,15 @@ fallback:
 		kgem_submit(&sna->kgem);
 		if (!kgem_check_bo(&sna->kgem, dst_bo, src_bo, NULL))
 			goto fallback;
+	}
+
+	if (kgem_bo_is_dirty(src_bo)) {
+		if (sna_blt_compare_depth(&src->drawable, &dst->drawable) &&
+		    sna_blt_copy(sna, alu,
+				 src_bo, dst_bo,
+				 dst->drawable.bitsPerPixel,
+				 op))
+			return true;
 	}
 
 	gen4_copy_bind_surfaces(sna, &op->base);
@@ -3288,6 +3308,7 @@ gen4_render_fill_boxes(struct sna *sna,
 
 	tmp.is_affine = true;
 	tmp.floats_per_vertex = 3;
+	tmp.floats_per_rect = 9;
 	tmp.u.gen4.wm_kernel = WM_KERNEL;
 	tmp.u.gen4.ve_id = 1;
 
@@ -3307,6 +3328,7 @@ gen4_render_fill_boxes(struct sna *sna,
 		box++;
 	} while (--n);
 
+	gen4_vertex_flush(sna);
 	kgem_bo_destroy(&sna->kgem, tmp.src.bo);
 	return true;
 }
@@ -3389,6 +3411,9 @@ gen4_render_fill(struct sna *sna, uint8_t alu,
 	op->base.dst.bo = dst_bo;
 	op->base.dst.x = op->base.dst.y = 0;
 
+	op->base.need_magic_ca_pass = 0;
+	op->base.has_component_alpha = 0;
+
 	op->base.src.bo =
 		sna_render_get_solid(sna,
 				     sna_rgba_for_color(color,
@@ -3402,8 +3427,7 @@ gen4_render_fill(struct sna *sna, uint8_t alu,
 
 	op->base.is_affine = true;
 	op->base.floats_per_vertex = 3;
-	op->base.need_magic_ca_pass = 0;
-	op->base.has_component_alpha = 0;
+	op->base.floats_per_rect = 9;
 	op->base.u.gen4.wm_kernel = WM_KERNEL;
 	op->base.u.gen4.ve_id = 1;
 
@@ -3490,6 +3514,7 @@ gen4_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 
 	tmp.is_affine = true;
 	tmp.floats_per_vertex = 3;
+	tmp.floats_per_rect = 9;
 	tmp.has_component_alpha = 0;
 	tmp.need_magic_ca_pass = false;
 
@@ -3506,8 +3531,7 @@ gen4_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 
 	gen4_render_fill_rectangle(sna, &tmp, x1, y1, x2 - x1, y2 - y1);
 
-	if (sna->render_state.gen4.vertex_offset)
-		gen4_vertex_flush(sna);
+	gen4_vertex_flush(sna);
 	kgem_bo_destroy(&sna->kgem, tmp.src.bo);
 
 	return true;
@@ -3528,6 +3552,31 @@ discard_vbo(struct sna *sna)
 	sna->render.vertex_size = ARRAY_SIZE(sna->render.vertex_data);
 	sna->render.vertex_used = 0;
 	sna->render.vertex_index = 0;
+}
+
+static void
+gen4_render_retire(struct kgem *kgem)
+{
+	struct sna *sna;
+
+	sna = container_of(kgem, struct sna, kgem);
+	if (kgem->nbatch == 0 && sna->render.vbo && !kgem_bo_is_busy(sna->render.vbo)) {
+		DBG(("%s: resetting idle vbo\n", __FUNCTION__));
+		sna->render.vertex_used = 0;
+		sna->render.vertex_index = 0;
+	}
+}
+
+static void
+gen4_render_expire(struct kgem *kgem)
+{
+	struct sna *sna;
+
+	sna = container_of(kgem, struct sna, kgem);
+	if (sna->render.vbo && !sna->render.vertex_used) {
+		DBG(("%s: discarding vbo\n", __FUNCTION__));
+		discard_vbo(sna);
+	}
 }
 
 static void gen4_render_reset(struct sna *sna)
@@ -3569,34 +3618,35 @@ static uint32_t gen4_create_vs_unit_state(struct sna_static_stream *stream)
 }
 
 static uint32_t gen4_create_sf_state(struct sna_static_stream *stream,
+				     const struct gt_info *info,
 				     uint32_t kernel)
 {
-	struct gen4_sf_unit_state *sf_state;
+	struct gen4_sf_unit_state *sf;
 
-	sf_state = sna_static_stream_map(stream, sizeof(*sf_state), 32);
+	sf = sna_static_stream_map(stream, sizeof(*sf), 32);
 
-	sf_state->thread0.grf_reg_count = GEN4_GRF_BLOCKS(SF_KERNEL_NUM_GRF);
-	sf_state->thread0.kernel_start_pointer = kernel >> 6;
-	sf_state->sf1.single_program_flow = 1;
+	sf->thread0.grf_reg_count = GEN4_GRF_BLOCKS(SF_KERNEL_NUM_GRF);
+	sf->thread0.kernel_start_pointer = kernel >> 6;
+	sf->sf1.single_program_flow = 1;
 	/* scratch space is not used in our kernel */
-	sf_state->thread2.scratch_space_base_pointer = 0;
-	sf_state->thread3.const_urb_entry_read_length = 0;	/* no const URBs */
-	sf_state->thread3.const_urb_entry_read_offset = 0;	/* no const URBs */
-	sf_state->thread3.urb_entry_read_length = 1;	/* 1 URB per vertex */
+	sf->thread2.scratch_space_base_pointer = 0;
+	sf->thread3.const_urb_entry_read_length = 0;	/* no const URBs */
+	sf->thread3.const_urb_entry_read_offset = 0;	/* no const URBs */
+	sf->thread3.urb_entry_read_length = 1;	/* 1 URB per vertex */
 	/* don't smash vertex header, read start from dw8 */
-	sf_state->thread3.urb_entry_read_offset = 1;
-	sf_state->thread3.dispatch_grf_start_reg = 3;
-	sf_state->thread4.max_threads = SF_MAX_THREADS - 1;
-	sf_state->thread4.urb_entry_allocation_size = URB_SF_ENTRY_SIZE - 1;
-	sf_state->thread4.nr_urb_entries = URB_SF_ENTRIES;
-	sf_state->sf5.viewport_transform = false;	/* skip viewport */
-	sf_state->sf6.cull_mode = GEN4_CULLMODE_NONE;
-	sf_state->sf6.scissor = 0;
-	sf_state->sf7.trifan_pv = 2;
-	sf_state->sf6.dest_org_vbias = 0x8;
-	sf_state->sf6.dest_org_hbias = 0x8;
+	sf->thread3.urb_entry_read_offset = 1;
+	sf->thread3.dispatch_grf_start_reg = 3;
+	sf->thread4.max_threads = info->max_sf_threads - 1;
+	sf->thread4.urb_entry_allocation_size = URB_SF_ENTRY_SIZE - 1;
+	sf->thread4.nr_urb_entries = URB_SF_ENTRIES;
+	sf->sf5.viewport_transform = false;	/* skip viewport */
+	sf->sf6.cull_mode = GEN4_CULLMODE_NONE;
+	sf->sf6.scissor = 0;
+	sf->sf7.trifan_pv = 2;
+	sf->sf6.dest_org_vbias = 0x8;
+	sf->sf6.dest_org_hbias = 0x8;
 
-	return sna_static_stream_offsetof(stream, sf_state);
+	return sna_static_stream_offsetof(stream, sf);
 }
 
 static uint32_t gen4_create_sampler_state(struct sna_static_stream *stream,
@@ -3616,47 +3666,48 @@ static uint32_t gen4_create_sampler_state(struct sna_static_stream *stream,
 	return sna_static_stream_offsetof(stream, sampler_state);
 }
 
-static void gen4_init_wm_state(struct gen4_wm_unit_state *state,
+static void gen4_init_wm_state(struct gen4_wm_unit_state *wm,
+			       const struct gt_info *info,
 			       bool has_mask,
 			       uint32_t kernel,
 			       uint32_t sampler)
 {
-	state->thread0.grf_reg_count = GEN4_GRF_BLOCKS(PS_KERNEL_NUM_GRF);
-	state->thread0.kernel_start_pointer = kernel >> 6;
+	wm->thread0.grf_reg_count = GEN4_GRF_BLOCKS(PS_KERNEL_NUM_GRF);
+	wm->thread0.kernel_start_pointer = kernel >> 6;
 
-	state->thread1.single_program_flow = 0;
+	wm->thread1.single_program_flow = 0;
 
 	/* scratch space is not used in our kernel */
-	state->thread2.scratch_space_base_pointer = 0;
-	state->thread2.per_thread_scratch_space = 0;
+	wm->thread2.scratch_space_base_pointer = 0;
+	wm->thread2.per_thread_scratch_space = 0;
 
-	state->thread3.const_urb_entry_read_length = 0;
-	state->thread3.const_urb_entry_read_offset = 0;
+	wm->thread3.const_urb_entry_read_length = 0;
+	wm->thread3.const_urb_entry_read_offset = 0;
 
-	state->thread3.urb_entry_read_offset = 0;
+	wm->thread3.urb_entry_read_offset = 0;
 	/* wm kernel use urb from 3, see wm_program in compiler module */
-	state->thread3.dispatch_grf_start_reg = 3;	/* must match kernel */
+	wm->thread3.dispatch_grf_start_reg = 3;	/* must match kernel */
 
-	state->wm4.sampler_count = 1;	/* 1-4 samplers */
+	wm->wm4.sampler_count = 1;	/* 1-4 samplers */
 
-	state->wm4.sampler_state_pointer = sampler >> 5;
-	state->wm5.max_threads = PS_MAX_THREADS - 1;
-	state->wm5.transposed_urb_read = 0;
-	state->wm5.thread_dispatch_enable = 1;
+	wm->wm4.sampler_state_pointer = sampler >> 5;
+	wm->wm5.max_threads = info->max_wm_threads - 1;
+	wm->wm5.transposed_urb_read = 0;
+	wm->wm5.thread_dispatch_enable = 1;
 	/* just use 16-pixel dispatch (4 subspans), don't need to change kernel
 	 * start point
 	 */
-	state->wm5.enable_16_pix = 1;
-	state->wm5.enable_8_pix = 0;
-	state->wm5.early_depth_test = 1;
+	wm->wm5.enable_16_pix = 1;
+	wm->wm5.enable_8_pix = 0;
+	wm->wm5.early_depth_test = 1;
 
 	/* Each pair of attributes (src/mask coords) is two URB entries */
 	if (has_mask) {
-		state->thread1.binding_table_entry_count = 3;	/* 2 tex and fb */
-		state->thread3.urb_entry_read_length = 4;
+		wm->thread1.binding_table_entry_count = 3;	/* 2 tex and fb */
+		wm->thread3.urb_entry_read_length = 4;
 	} else {
-		state->thread1.binding_table_entry_count = 2;	/* 1 tex and fb */
-		state->thread3.urb_entry_read_length = 2;
+		wm->thread1.binding_table_entry_count = 2;	/* 1 tex and fb */
+		wm->thread3.urb_entry_read_length = 2;
 	}
 }
 
@@ -3716,8 +3767,14 @@ static bool gen4_render_setup(struct sna *sna)
 	struct gen4_render_state *state = &sna->render_state.gen4;
 	struct sna_static_stream general;
 	struct gen4_wm_unit_state_padded *wm_state;
+	const struct gt_info *info;
 	uint32_t sf[2], wm[KERNEL_COUNT];
 	int i, j, k, l, m;
+
+	if (sna->kgem.gen == 45)
+		info = &g4x_gt_info;
+	else
+		info = &gen4_gt_info;
 
 	sna_static_stream_init(&general);
 
@@ -3744,8 +3801,8 @@ static bool gen4_render_setup(struct sna *sna)
 
 	state->vs = gen4_create_vs_unit_state(&general);
 
-	state->sf[0] = gen4_create_sf_state(&general, sf[0]);
-	state->sf[1] = gen4_create_sf_state(&general, sf[1]);
+	state->sf[0] = gen4_create_sf_state(&general, info, sf[0]);
+	state->sf[1] = gen4_create_sf_state(&general, info, sf[1]);
 
 
 	/* Set up the WM states: each filter/extend type for source and mask, per
@@ -3769,7 +3826,7 @@ static bool gen4_render_setup(struct sna *sna)
 									  k, l);
 
 					for (m = 0; m < KERNEL_COUNT; m++) {
-						gen4_init_wm_state(&wm_state->state,
+						gen4_init_wm_state(&wm_state->state, info,
 								   wm_kernels[m].has_mask,
 								   wm[m],
 								   sampler_state);
@@ -3790,6 +3847,9 @@ bool gen4_render_init(struct sna *sna)
 {
 	if (!gen4_render_setup(sna))
 		return false;
+
+	sna->kgem.retire = gen4_render_retire;
+	sna->kgem.expire = gen4_render_expire;
 
 	sna->render.composite = gen4_render_composite;
 #if !NO_COMPOSITE_SPANS

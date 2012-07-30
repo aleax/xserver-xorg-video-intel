@@ -64,9 +64,9 @@
 #define is_aligned(x, y) (((x) & ((y) - 1)) == 0)
 
 struct gt_info {
-	int max_vs_threads;
-	int max_gs_threads;
-	int max_wm_threads;
+	uint32_t max_vs_threads;
+	uint32_t max_gs_threads;
+	uint32_t max_wm_threads;
 	struct {
 		int size;
 		int max_vs_entries;
@@ -77,14 +77,14 @@ struct gt_info {
 static const struct gt_info gt1_info = {
 	.max_vs_threads = 36,
 	.max_gs_threads = 36,
-	.max_wm_threads = 86,
+	.max_wm_threads = (48-1) << GEN7_PS_MAX_THREADS_SHIFT,
 	.urb = { 128, 512, 192 },
 };
 
 static const struct gt_info gt2_info = {
 	.max_vs_threads = 128,
 	.max_gs_threads = 128,
-	.max_wm_threads = 172,
+	.max_wm_threads = (172-1) << GEN7_PS_MAX_THREADS_SHIFT,
 	.urb = { 256, 704, 320 },
 };
 
@@ -833,7 +833,7 @@ gen7_emit_wm(struct sna *sna, int kernel)
 	OUT_BATCH(1 << GEN7_PS_SAMPLER_COUNT_SHIFT |
 		  wm_kernels[kernel].num_surfaces << GEN7_PS_BINDING_TABLE_ENTRY_COUNT_SHIFT);
 	OUT_BATCH(0); /* scratch address */
-	OUT_BATCH((sna->render_state.gen7.info->max_wm_threads - 1) << GEN7_PS_MAX_THREADS_SHIFT |
+	OUT_BATCH(sna->render_state.gen7.info->max_wm_threads |
 		  GEN7_PS_ATTRIBUTE_ENABLE |
 		  GEN7_PS_16_DISPATCH_ENABLE);
 	OUT_BATCH(6 << GEN7_PS_DISPATCH_START_GRF_SHIFT_0);
@@ -1031,7 +1031,7 @@ gen7_emit_state(struct sna *sna,
 		const struct sna_composite_op *op,
 		uint16_t wm_binding_table)
 {
-	bool need_stall = false;
+	bool need_stall;
 
 	if (sna->render_state.gen7.emit_flush)
 		gen7_emit_pipe_flush(sna);
@@ -1042,7 +1042,10 @@ gen7_emit_state(struct sna *sna,
 	gen7_emit_wm(sna, GEN7_KERNEL(op->u.gen7.flags));
 	gen7_emit_vertex_elements(sna, op);
 
-	need_stall |= gen7_emit_binding_table(sna, wm_binding_table);
+	need_stall = false;
+	if (wm_binding_table & 1)
+		need_stall = GEN7_BLEND(op->u.gen7.flags) != NO_BLEND;
+	need_stall |= gen7_emit_binding_table(sna, wm_binding_table & ~1);
 	need_stall &= gen7_emit_drawing_rectangle(sna, op);
 
 	if (kgem_bo_is_dirty(op->src.bo) || kgem_bo_is_dirty(op->mask.bo)) {
@@ -1787,8 +1790,10 @@ static void gen7_emit_composite_state(struct sna *sna,
 {
 	uint32_t *binding_table;
 	uint16_t offset;
+	bool dirty;
 
 	gen7_get_batch(sna);
+	dirty = kgem_bo_is_dirty(op->dst.bo);
 
 	binding_table = gen7_composite_get_binding_table(sna, &offset);
 
@@ -1820,7 +1825,7 @@ static void gen7_emit_composite_state(struct sna *sna,
 		offset = sna->render_state.gen7.surface_table;
 	}
 
-	gen7_emit_state(sna, op, offset);
+	gen7_emit_state(sna, op, offset | dirty);
 }
 
 static void
@@ -3329,6 +3334,7 @@ gen7_emit_copy_state(struct sna *sna,
 		offset = sna->render_state.gen7.surface_table;
 	}
 
+	assert(GEN7_BLEND(op->u.gen7.flags) == NO_BLEND);
 	gen7_emit_state(sna, op, offset);
 }
 
@@ -3705,6 +3711,7 @@ gen7_emit_fill_state(struct sna *sna, const struct sna_composite_op *op)
 {
 	uint32_t *binding_table;
 	uint16_t offset;
+	bool dirty;
 
 	/* XXX Render Target Fast Clear
 	 * Set RTFC Enable in PS and render a rectangle.
@@ -3713,6 +3720,7 @@ gen7_emit_fill_state(struct sna *sna, const struct sna_composite_op *op)
 	 */
 
 	gen7_get_batch(sna);
+	dirty = kgem_bo_is_dirty(op->dst.bo);
 
 	binding_table = gen7_composite_get_binding_table(sna, &offset);
 
@@ -3734,7 +3742,7 @@ gen7_emit_fill_state(struct sna *sna, const struct sna_composite_op *op)
 		offset = sna->render_state.gen7.surface_table;
 	}
 
-	gen7_emit_state(sna, op, offset);
+	gen7_emit_state(sna, op, offset | dirty);
 }
 
 static inline bool prefer_blt_fill(struct sna *sna,
@@ -4277,7 +4285,7 @@ static bool gen7_render_setup(struct sna *sna)
 	 */
 	null_create(&general);
 
-	for (m = 0; m < GEN7_KERNEL_COUNT; m++)
+	for (m = 0; m < GEN7_WM_KERNEL_COUNT; m++)
 		state->wm_kernel[m] =
 			sna_static_stream_add(&general,
 					       wm_kernels[m].data,

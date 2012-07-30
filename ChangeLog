@@ -1,3 +1,355 @@
+commit a8ee1406244d8b8399bf933d6b61bfd14374b5f9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Jul 27 09:07:16 2012 +0100
+
+    2.20.2 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit bef73cd9279be3438e467981db39c67bc13104f5
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 21:54:33 2012 +0100
+
+    sna/dri: Select the engine before emitting the wait
+    
+    So that if we have a flexible WAIT_FOR_EVENT that can go on either
+    pipeline, we can choose our preferred pipeline for DRI.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1ced4f1ddcf30b518e1760c7aa4a5ed4f934b9f5
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 10:50:31 2012 +0100
+
+    Reduce maximum thread count for IVB GT1 to avoid spontaneous combustion
+    
+    Somewhere along the way it seems that IVB GT1 was reduced to only allow
+    a maximum of 48 threads, as revealed in the lastest bspecs.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=52473
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8f8f8759111f791ee99adfd87296443fb0e6acad
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 17:39:34 2012 +0100
+
+    sna/gen4: Tweak heuristics for render/blt usage
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c9dd1401615f0ed9492a0c0f547fb37150e013d1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 16:31:16 2012 +0100
+
+    sna/gen4: Bump thread counts
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7f3fdef98c1ab2fa27439c3be9810b7a934017ce
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 15:39:05 2012 +0100
+
+    sna/gen7: IVB requires a complete pipeline stall when changing blend modes
+    
+    Similar to how SandyBridge behaves, I had hoped that with IvyBridge they
+    would have made the pipelined operation actually pipelined, but alas.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=52473
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0938b3df8c25178c8ea0012e1ead1061d03a4e7c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 15:21:59 2012 +0100
+
+    sna/dri: Add an explanatory assertion
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c621183466aa55a5938027b702069e792df2272d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 15:18:56 2012 +0100
+
+    sna/dri: Tidy fallback/normal CopyRegion
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 52d2491a1bafb979d79bb970027c55788f199acb
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 15:19:14 2012 +0100
+
+    sna/video: Protect against attempting to use TexturedVideo whilst wedged
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8c0e3bbb0c301d0fa4652aa38edd84a9fd6b555e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 14:58:04 2012 +0100
+
+    sna: Force the damage on the DRI pixmap to be flushed to the GPU
+    
+    Otherwise nothing will happen if we consider ourselves wedged.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f50d7b03b5d0b81b24f0acb4ae555545bbdaa179
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 14:47:44 2012 +0100
+
+    sna: Only recommend not to create bo for a pixmap whilst wedged
+    
+    This allows us to continue to map a GPU bo and operate inplace if we are
+    force to create a GPU bo for a compositor.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 49403ddd1bd9a23e1b32a10e7d0757ae2897a579
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 14:44:14 2012 +0100
+
+    sna/dri: Mark a flush required for any new DRI already on exec/dirty lists
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit efe3c8ff48738f2a274e1d4514d32499fc4aadbc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 14:43:33 2012 +0100
+
+    sna: Allow DRI to force allocation of a GPU bo and backing pixmap
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2069384f9f06d3ef9dbb0c3f2c64cac4b24e10fc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 14:15:45 2012 +0100
+
+    sna/dri: Implement fallback handling for CopyRegion whilst wedged
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b18143de47e060b67a46d9c68590a2d35df9fca6
+Author: Paul Menzel <paulepanter@users.sourceforge.net>
+Date:   Thu Jul 26 12:51:57 2012 +0200
+
+    NEWS: Correct release version: s/2.12.0/2.20.0/
+    
+    Signed-off-by: Paul Menzel <paulepanter@users.sourceforge.net>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c262d02fb5defe9100df54cf83cc00e11e335745
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 01:12:11 2012 +0100
+
+    Limit PCI matching to VGA devices
+    
+    Fixes X -configure
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ad6355311b8b80777bc0fec95f6bf6cd1b4969d9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 01:02:53 2012 +0100
+
+    sna: Compile against xorg-1.10
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b6c7c490d76c683b7b5c89d20f902603b85bd3bc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Jul 26 00:48:59 2012 +0100
+
+    sna: Check for a NULL scanout after DPMS off with shadow enabled
+    
+    We may mark the scanout as detached when all outputs are turned off (for
+    example during rotation) and so in the subsequent block handler we need
+    to be careful in case we are handling a detached shadow.
+    
+    Reported-by: chr.ohm@gmx.net
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=52514
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f4acc01bb09f68edbad4c6cc7e04c271c92661c1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 22:43:32 2012 +0100
+
+    sna: Restore inplace upload for DRI compositors
+    
+    With a DRI compositor we have to flush the output after every request,
+    which leads to major inefficiencies. This can be mitigated slightly if
+    we know we will have to upload shortly, which we track using the pixmap
+    flush flag.
+    
+    In particular PutImage is meant to upload inplace to an active DRI
+    buffer, however this was accidentally dropped in
+    
+    commit a253c95ec63b2b075e66ae7380fed6a73469eba5
+    Author: Chris Wilson <chris@chris-wilson.co.uk>
+    Date:   Sun Jul 15 13:32:35 2012 +0100
+    
+        sna: Prefer uploads to be staged in snoopable bo
+    
+    Performace of putimage500 on ivb i7-3720qm:
+      bare:        4610
+      gnome-shell: 3000
+      patched:     3390
+    
+    Reported-by: Michael Larabel <Michael@phoronix.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5c969a05ef815b261e157fe8d1172aebfd7f5841
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 20:28:41 2012 +0100
+
+    sna/gen7: Move the PS thread count definition into the constant struct
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 901bb618215d65747eb0a8d481c77c1201f69362
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 20:13:15 2012 +0100
+
+    sna/gen7: Remove duplicated constants
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8c5077e4ed055a97bf9deda59c0e9a45e42317ca
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 16:59:11 2012 +0100
+
+    Assume all unknown chipsets are future gen
+    
+    I think the likelihood of a new product being launched based on a 8xx
+    design is remote enough not to worry about.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 954d9c6aca792098cb16a46b4ec8d5fc104b15a9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 15:41:29 2012 +0100
+
+    sna: Initialise single-shot tile offsets before use
+    
+    As noted by the compiler amidst all the noise.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 484b072072c8297a87940c9e32097923f0a77c8f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 12:22:47 2012 +0100
+
+    sna: Add 'gmux_backlight' to list of known devices for backwards compatability
+    
+    Reported-by: Austin Lund <austin.lund@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=52423
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0ab6d7a50d37cf4454577cb8c333d4b8683aa054
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 12:20:36 2012 +0100
+
+    sna: Prefer platform backlight devices over firmware
+    
+    This is in contrast to libbacklight but closer to our original code as
+    we prefer a known custom backlight controller over the ACPI interfaces.
+    As only the ACPI interfaces are marked as firmware, and the custom
+    backlight controllers as platform, we therefore need to prefer platform
+    backlight devices.
+    
+    Reported-by: Austin Lund <austin.lund@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=52423
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b6d82ab07661aba98963f239f9501b50c3910962
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 10:40:07 2012 +0100
+
+    sna: Reduce ping-pong for Composite with render disabled
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit de707b7dc853a3b315ead9789d5ca541412c99bc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Jul 25 09:05:46 2012 +0100
+
+    uxa: Add Apple's gmux to the list of known preferred backlights
+    
+    Reported-by: Austin Lund <austin.lund@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=52423
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3d254e4010d0753f433cfe62c6a7546b02482847
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 23:45:33 2012 +0100
+
+    sna: Use SETUP_BLT to reduce overheads for tiled BLT
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2ed44149eaa27b9632ec83a776f3ee67b0eec7b0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 23:45:33 2012 +0100
+
+    sna: Use SETUP_BLT to reduce overheads for stippled BLT
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c1785aaca2c9347114d28f114ee59ef8206d829b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 23:00:25 2012 +0100
+
+    sna: Remove a surplus function
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 554fce8a65b2518cae032f1eadf58830559299c8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 22:59:16 2012 +0100
+
+    uxa: Pass the correct parameters to intel_detect_chipset()
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 40d90dfd8674c255a45b46bbdc09d497af5b3f50
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 21:55:46 2012 +0100
+
+    intel: Refactor the common chipset detection/override
+    
+    Reduce the duplicate messages for which type of chip we by
+    amalgamating the common code.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit e3f6c48d18c316899c71b6fc34971039c6f9e5f8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 14:43:23 2012 +0100
+
+    sna: Refactor PutImage to avoid calling drawable_gc_flags() too early
+    
+    drawable_gc_flags() asserts that the gc has been moved to the CPU prior
+    to its calls so that it can read the reduced raster operation.
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1af26ea4228a9d7768b475b4f9164d2c7620d4fd
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 14:39:44 2012 +0100
+
+    sna: Flesh out tiled operations using the BLT
+    
+    Before enabling the RENDER pipeline for this operation, let's just see
+    what is required to fully use the BLT pipeline as well.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ac182a006732525a921a9c539e5ebfb537ad3b52
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Jul 23 11:05:05 2012 +0100
+
+    sna: Hold a reference to the full stipple pattern for repeated tiles
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit 83f683b47063eab8cfb5037d02133dd977c3fc25
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sun Jul 22 23:20:23 2012 +0100
