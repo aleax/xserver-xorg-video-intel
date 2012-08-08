@@ -1,3 +1,9 @@
+xserver-xorg-video-intel (2:2.20.3-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 08 Aug 2012 09:45:51 +0300
+
 xserver-xorg-video-intel (2:2.20.2-1) experimental; urgency=low
 
   [ Maarten Lankhorst ]
