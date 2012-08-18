@@ -1,3 +1,563 @@
+commit 5ff6198c9346d84717bac28980329b048f4406e8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 18 11:59:56 2012 +0100
+
+    2.20.4 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit bc77a466531fdbdd21e9354af567e5215a66edf9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 18 11:09:23 2012 +0100
+
+    sna: Silence a couple of recent compiler warnings
+    
+    sna_accel.c: In function 'sna_poly_fill_rect_extents':
+    sna_accel.c:11438:11: warning: unused variable 'v' [-Wunused-variable]
+    
+    sna_blt.c: In function 'sna_blt_composite__convert':
+    sna_blt.c:1712:3: warning: format '%s' expects a matching 'char *' argument [-Wformat]
+    sna_blt.c:1738:3: warning: format '%x' expects argument of type 'unsigned int', but argument 4 has type 'CARD32' [-Wformat]
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d1da2c71461798bb027a260ff8480b71ebffde26
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 21:15:54 2012 +0100
+
+    sna: Correct assertion for StoreColors
+    
+    Fixing the assertion reveals that it was bogus!
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 31ddaa0cfbde083aef42d9fdb5ed13bb4edc36c8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 21:13:52 2012 +0100
+
+    sna: Fixup DBG after 7f5a9e3
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b8bc56c12c6fdc559354fbbf96b6e043a491aa8f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 21:00:57 2012 +0100
+
+    uxa/gen3: Simply simple fill shader generation
+    
+    Suggested-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 182581edde356a21a0681de526f83884e1a0de5d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:59:09 2012 +0100
+
+    uxa/glamor: Check for failed prepares
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c289b607d1526d8d3625fa84c093552a9f3ea168
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:54:40 2012 +0100
+
+    uxa: Check for failed mmapping of the scanout
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 32ec8b979bc8cf7d8ce351ca752b806d42bc1c0f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:53:08 2012 +0100
+
+    test/dri2: Discard error returns from _XReply
+    
+    This is only test code, so keep the static analyser quiet
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5675c36e0dca92b8d24235d82cd0e87f82fdc7b0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:44:32 2012 +0100
+
+    sna: Check for failure to pin the front buffer
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c9db2c74ab3b482489bec63b11df80bb35e21aca
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:42:50 2012 +0100
+
+    sna/gen2: Add break rather than fallthrough
+    
+    The fall-through in this instance is irrelevant, and the static
+    analysers complain for not commenting on the fall-through. Silence the
+    analyser by removing the fall-through.
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit e0abbc3ccafb51d6b2114e1c7d6dc2eda3a8c1f4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:40:17 2012 +0100
+
+    i810: Query PortPriv for the surface properties
+    
+    Avoid the NULL deferences.
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c09518f98d5c533860b084506d9ee2c819cca52f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:32:53 2012 +0100
+
+    sna: Fix assignment inside assertion (should be an equality check)
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7d3e4328d4f4421178377933ca98fb80daa85c76
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:32:11 2012 +0100
+
+    sna/glyphs: Fix potential leak of glyph extents (for many lists of many formats)
+    
+    Reported-by: Zdenek Kabelac <zkabelac@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9b00c82df78cb8820c0e32fbecc7c933eed81d52
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 20:30:52 2012 +0100
+
+    sna: Remember alpha-fixup for BLT upload
+    
+    Still dubious whether this is truly beneficial...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 94871944a0e1351273d6029df7bf0300f31a8571
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 16 00:07:58 2012 +0100
+
+    sna: Avoid conflating tearfree and randr shadow modes
+    
+    For ordinary TearFree we do not want to adjust the crtc offsets.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1a389842347bab9d91240444e161589071eb9a47
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 15 23:07:16 2012 +0100
+
+    sna: Avoid queuing a pageflip on a DPMS off pipe
+    
+    If the pipe is not running, attempting to queue a pageflip will result
+    in an error and us disabling the output in retaliation.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 615739556dd1cc4565eb1c47f93fe8abd697802f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 15 20:10:52 2012 +0100
+
+    sna: Only continue to update the shadow buffer if the flips succeeded
+    
+    If the flip fail, we disable the crtc and may end up disabling the
+    output, removing the shadow (and old scanout bo) in the process.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2554d0d76e0fcae6e324938c28bb50deeb8814dc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 15 18:04:18 2012 +0100
+
+    sna: Submit the batch upon destroying a ShmPixmap
+    
+    The midlayer has already detached the pixmap from the segment (possibly
+    destroying that segment in the process, thanks midlayer!) so we need to
+    submit the batch asap before the segment disappears.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4e604d721be5a1c0f8eaf91e3a5cf8c01a609a69
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 15 16:53:20 2012 +0100
+
+    sna: Flush shm pixmaps after upload
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7f5a9e30c953c174a4d6bc83e0b0a5e068cbda52
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 15 09:34:24 2012 +0100
+
+    sna: Remove zero-size rectangles fro PolyFillRectangle
+    
+    Some applications like to waste precious bw by attempting to fill
+    zero-sized rectangles; remove them upfront rather than process them.
+    
+    Reported-by: Jiri Slaby <jirislaby@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=47597
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0c882f4fa991ef379e416628eb41cd2178818ad1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 14 16:02:38 2012 +0100
+
+    sna/gen2,3: Prevent dereferencing a NULL bo with solid render fills
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 48f436d3705059711097a222aac65f862b4a5cfd
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 14 15:05:33 2012 +0100
+
+    sna: Defer the release of a busy SHM pixmap until the next flush callback
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9f07d1fc0181f22da36837337241f228626e0d88
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 14 12:03:24 2012 +0100
+
+    sna: Enable use of shm pixmap for readback
+    
+    A little too overzealous in the degradation of writing to the CPU bo
+    if we need to read from a GPU bo.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9b016d2e466f342cc6649504fa48ab6a810c7e94
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 12 21:36:30 2012 +0100
+
+    sna: do not bother attaching to a miniscule ShmPixmap
+    
+    If the pixmap is less than a page in size we are unlikely to recover the
+    cost of tracking it via the GPU.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2f4de90709264ad19a3e3f5f0f79f4bba78a760a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 12 13:01:24 2012 +0100
+
+    uxa: Only emit a warning if we fail to tile the frontbuffer and the hw allows
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4d3cafc99ab49da6744046bc2004981144cb064d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 12 13:02:43 2012 +0100
+
+    sna: Fix compilation without pixman glyphs
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit dc18eaa585c36c8e5f5b4ec405a976a835fd2ac3
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 12 10:34:10 2012 +0100
+
+    sna: Make the failure to create render caches non-fatal
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b580abdfa68108f3e63ee1f897b6ea83b9c47935
+Author: Dave Airlie <airlied@gmail.com>
+Date:   Sun Aug 12 20:52:12 2012 +1000
+
+    intel: fix video xvPipe range check
+    
+    Pointed out by Russell King on irc.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 44f848f9b2f2a2dcd9087210ea46bc4fdb63c057
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 19:44:15 2012 +0100
+
+    sna: Fix typo in computation of texel offsets for tiled 8x8 blts
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=53353
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b335d369bbcbfaef878795a5c8e72c2d40d3a536
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 12:59:49 2012 +0100
+
+    sna: Discard the GPU bo after syncing to CPU bo for writing
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 029934662e0bad6cf47baf4d7202656dd3e0ba08
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:47:44 2012 +0100
+
+    sna: Add a little DBG for promotion of CPU source bo
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f20f8556bfc8b4df6ba5050cca656a4ff0fdf18f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:46:40 2012 +0100
+
+    sna: Treat ShmPixmap as ordinary
+    
+    In theory the code handles the automatic promotion and demotion of the
+    GPU buffers.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 16c751a06c503b85c5ab6588bae277af4348487d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:44:08 2012 +0100
+
+    sna: Only mark userptr bo as snooped on non-LLC architectures
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 59359dba6496229eff7c60dd04536c5add69cec8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:25:40 2012 +0100
+
+    sna: Mark SHM userptr bo as unreusable
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 64488010504a6e76008bb3b3c1e61caeb025913c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:21:39 2012 +0100
+
+    sna/gen2-5: Substitute an equivalent BLT composite operation
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f464d508c870293699616626d64bd64f16051467
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 10:10:32 2012 +0100
+
+    sna/gen6+: Try to use the BLT to avoid TLB misses
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit e9c0e54e69a5ce93bb4e79d56da4a83fddf49c4e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 11 08:58:14 2012 +0100
+
+    sna: Handle userptr failures more gracefully
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5d6d9231cd2003fda1c6f2dd3174014317a45704
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Aug 10 23:07:07 2012 +0100
+
+    sna: Reset BLT state after copy-boxes
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 50bfc172f1f89c023bb3a47418b845e31eba7126
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Aug 10 22:49:26 2012 +0100
+
+    sna: Improve a DBG statement
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b33f6754a99f6d11e423d6a03739fa2c04eeed88
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Aug 10 21:59:36 2012 +0100
+
+    sna: Add assertions to 8x8 tiled BLTs and reset BLT state afterwards
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=53353
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ff54d4af39edcddd55f597c404ab6dd548a24aa9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Aug 10 21:41:38 2012 +0100
+
+    sna: Add a couple of debug options to control use of BLT patterns
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=53353
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 22306144030b5d37df6d46321555bced6e33c50c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 19:45:09 2012 +0100
+
+    sna: Use the HAS_SEMAPHORES parameter when available
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 465ae1840a883c50d5a5aab7380b30527f00e17b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 12:23:25 2012 +0100
+
+    sna: Use a compile time constant for determine the zeroth bit
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 85192f00e345830541e3715e211b1f98154bbef4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 12:11:50 2012 +0100
+
+    sna: Ignore trailing bits when comparing lines inside the bitmap
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit edc1427f3dcddb73acdb5b5e03756ecb30cb3797
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 10:53:40 2012 +0100
+
+    sna/gen5: Add DBG for context switching
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit fec78ddc60b1f03097b334672546c2c7ef21ab4f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 10:08:52 2012 +0100
+
+    sna: Add DBG option to disable discarding of glyph masks
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b0cd430082d219500729d20c4740440e58773892
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 10:07:06 2012 +0100
+
+    sna/gen5: Fix use of uninitialised rgba value for DBG
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9ad923f95c59cdf42363f95c7dd52188c0987296
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 8 09:59:50 2012 +0100
+
+    sna: Minor DBG for fallback glyphs and discarding the mask
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1a0590d133ea6991e0939d1f170f9c10df6856a0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 7 17:16:35 2012 +0100
+
+    sna: Check the composite extents against the clip
+    
+    When computing the composite extents (as opposed to the composite
+    region) also check if the resultant box overlaps the destination clip
+    region (we know it already fits into the extents). This helps in cases
+    with small roi against clipped drawables, such as drawing text onto
+    expose events.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5f5a10ef04a8c01b22da2284583851d84273dc2a
+Author: Paulo Zanoni <paulo.r.zanoni@intel.com>
+Date:   Mon Aug 6 18:48:09 2012 -0300
+
+    Add Haswell PCI IDs
+    
+    Signed-off-by: Paulo Zanoni <paulo.r.zanoni@intel.com>
+    Reviewed-by: Rodrigo Vivi <rodrigo.vivi@gmail.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d8f7f933bc2d30e529730521d5628c10df0361de
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 5 17:18:54 2012 +0100
+
+    sna: Format markup to suppress compiler warning
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4d0a259988f67f5c569c5d8000c010a7b662efd3
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 15:54:19 2012 +0100
+
+    sna/gen6: Compile fix for DBG
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d917a276bff4e933590e78404526b929b6b3b497
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 18:05:03 2012 +0100
+
+    sna/gen4: Restore the w/a flush for fill/copy as well
+    
+    So far, it looks like that the only one we can indeed drop is the
+    composite with mask.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d754bc3435889b5d19085588c9c888dc08f9522e
+Author: Cyril Brulebois <kibi@debian.org>
+Date:   Mon Nov 7 23:29:29 2011 +0100
+
+    Fix build failure when passing --with-builderstring.
+    
+    If --with-builderstring="foo" is passed to configure (and sna enabled):
+      CC     sna_driver.lo
+    src/sna/sna_driver.c: In function 'sna_init_scrn':
+    src/sna/sna_driver.c:1023:7: error: token ""foo"" is not valid in preprocessor expressions
+    
+    Fix the missing defined() around the BUILDER_DESCRIPTION variable.
+    
+    Signed-off-by: Cyril Brulebois <kibi@debian.org>
+
+commit 4bad76b4510d8cf4ccf3f64bcd13ebb80fae4d26
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 14:28:41 2012 +0100
+
+    sna/dri: Don't force ring selection if we have semaphores
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit fb7b584ec9d0ea96175ba3a621699378c6724940
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 14:27:46 2012 +0100
+
+    sna/dri: Correct ring selection for a busy bo
+    
+    Confused the RENDER ring with the BLT, limiting swap performance.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 20e58077fe071fd03d44a97194aa163376dc46a4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 11:21:10 2012 +0100
+
+    sna/gen6: Reduce ring switching for overlapping copy boxes
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2345227663f443baa3c30bdf8b8c33827b7f4947
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 11:12:12 2012 +0100
+
+    sna/gen7: Use a temporary to avoid switching rings for overlapping copies
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 61ec2999afd5dad22580e024421f13afe7c82f3a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 4 10:33:05 2012 +0100
+
+    sna/gen4: Restore w/a flush for video
+    
+    One flush removal too many, keep those fingers crossed that the others
+    do not make an unwanted return.
+    
+    Reported-by: Roman Jarosz <kedgedev@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=53119
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit 5833ef173a01afb710acf10e806b83c5ca6efc09
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sat Aug 4 09:31:41 2012 +0100
