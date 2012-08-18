@@ -1755,14 +1755,6 @@ gen2_render_composite(struct sna *sna,
 		return false;
 	}
 
-	if (mask == NULL && sna->kgem.mode == KGEM_BLT &&
-	    sna_blt_composite(sna, op,
-			      src, dst,
-			      src_x, src_y,
-			      dst_x, dst_y,
-			      width, height, tmp))
-		return true;
-
 	sna_render_reduce_damage(tmp, dst_x, dst_y, width, height);
 
 	tmp->op = op;
@@ -1782,7 +1774,15 @@ gen2_render_composite(struct sna *sna,
 		goto cleanup_dst;
 	case 0:
 		gen2_composite_solid_init(sna, &tmp->src, 0);
+		break;
 	case 1:
+		if (mask == NULL && tmp->src.bo &&
+		    sna_blt_composite__convert(sna,
+					       src_x, src_y,
+					       width, height,
+					       dst_x, dst_y,
+					       tmp))
+			return true;
 		break;
 	}
 

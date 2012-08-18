@@ -92,6 +92,8 @@ search_snoop_cache(struct kgem *kgem, unsigned int num_pages, unsigned flags);
 #define IS_USER_MAP(ptr) ((uintptr_t)(ptr) & 2)
 #define __MAP_TYPE(ptr) ((uintptr_t)(ptr) & 3)
 
+#define LOCAL_I915_PARAM_HAS_SEMAPHORES	 20
+
 #define LOCAL_I915_GEM_USERPTR       0x32
 #define LOCAL_IOCTL_I915_GEM_USERPTR DRM_IOWR (DRM_COMMAND_BASE + LOCAL_I915_GEM_USERPTR, struct local_i915_gem_userptr)
 struct local_i915_gem_userptr {
@@ -616,13 +618,18 @@ static int gem_param(struct kgem *kgem, int name)
 	return v;
 }
 
-static bool test_has_semaphores_enabled(void)
+static bool test_has_semaphores_enabled(struct kgem *kgem)
 {
 	FILE *file;
 	bool detected = false;
+	int ret;
 
 	if (DBG_NO_SEMAPHORES)
 		return false;
+
+	ret = gem_param(kgem, LOCAL_I915_PARAM_HAS_SEMAPHORES);
+	if (ret != -1)
+		return ret > 0;
 
 	file = fopen("/sys/module/i915/parameters/semaphores", "r");
 	if (file) {
@@ -788,7 +795,7 @@ void kgem_init(struct kgem *kgem, int fd, struct pci_device *dev, int gen)
 	     kgem->has_userptr));
 
 	kgem->has_semaphores = false;
-	if (kgem->has_blt && test_has_semaphores_enabled())
+	if (kgem->has_blt && test_has_semaphores_enabled(kgem))
 		kgem->has_semaphores = true;
 	DBG(("%s: semaphores enabled? %d\n", __FUNCTION__,
 	     kgem->has_semaphores));
@@ -2179,13 +2186,14 @@ void _kgem_submit(struct kgem *kgem)
 							break;
 						}
 					}
-					ErrorF("exec[%d] = handle:%d, presumed offset: %x, size: %d, tiling %d, fenced %d, deleted %d\n",
+					ErrorF("exec[%d] = handle:%d, presumed offset: %x, size: %d, tiling %d, fenced %d, snooped %d, deleted %d\n",
 					       i,
 					       kgem->exec[i].handle,
 					       (int)kgem->exec[i].offset,
-					       found ? bytes(found) : -1,
+					       found ? kgem_bo_size(found) : -1,
 					       found ? found->tiling : -1,
 					       (int)(kgem->exec[i].flags & EXEC_OBJECT_NEEDS_FENCE),
+					       found ? found->snoop : -1,
 					       found ? found->purged : -1);
 				}
 				for (i = 0; i < kgem->nreloc; i++) {
@@ -3801,7 +3809,7 @@ struct kgem_bo *kgem_create_map(struct kgem *kgem,
 		return NULL;
 	}
 
-	bo->snoop = true;
+	bo->snoop = !kgem->has_llc;
 	debug_alloc__bo(kgem, bo);
 
 	DBG(("%s(ptr=%p, size=%d, pages=%d, read_only=%d) => handle=%d\n",
@@ -4003,6 +4011,8 @@ create_snoopable_buffer(struct kgem *kgem, unsigned alloc)
 {
 	struct kgem_buffer *bo;
 	uint32_t handle;
+
+	assert(!kgem->has_llc);
 
 	if (kgem->has_cacheing) {
 		struct kgem_bo *old;

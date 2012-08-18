@@ -1923,6 +1923,7 @@ gen5_composite_picture(struct sna *sna,
 	} else
 		channel->transform = picture->transform;
 
+	channel->pict_format = picture->format;
 	channel->card_format = gen5_get_card_format(picture->format);
 	if (channel->card_format == -1)
 		return sna_render_picture_convert(sna, picture, channel, pixmap,
@@ -2302,14 +2303,6 @@ gen5_render_composite(struct sna *sna,
 		return false;
 	}
 
-	if (mask == NULL && sna->kgem.mode == KGEM_BLT &&
-	    sna_blt_composite(sna, op,
-			      src, dst,
-			      src_x, src_y,
-			      dst_x, dst_y,
-			      width, height, tmp))
-		return true;
-
 	sna_render_reduce_damage(tmp, dst_x, dst_y, width, height);
 
 	if (too_large(tmp->dst.width, tmp->dst.height) &&
@@ -2330,6 +2323,14 @@ gen5_render_composite(struct sna *sna,
 		gen5_composite_solid_init(sna, &tmp->src, 0);
 		/* fall through to fixup */
 	case 1:
+		if (mask == NULL &&
+		    sna_blt_composite__convert(sna,
+					       src_x, src_y,
+					       width, height,
+					       dst_x, dst_y,
+					       tmp))
+			return true;
+
 		gen5_composite_channel_convert(&tmp->src);
 		break;
 	}
@@ -3123,8 +3124,10 @@ gen5_render_fill_boxes(struct sna *sna,
 	struct sna_composite_op tmp;
 	uint32_t pixel;
 
-	DBG(("%s op=%x, color=%08x, boxes=%d x [((%d, %d), (%d, %d))...]\n",
-	     __FUNCTION__, op, pixel, n, box->x1, box->y1, box->x2, box->y2));
+	DBG(("%s op=%x, color=(%04x,%04x,%04x,%04x), boxes=%d x [((%d, %d), (%d, %d))...]\n",
+	     __FUNCTION__, op,
+	     color->red, color->green, color->blue, color->alpha,
+	     n, box->x1, box->y1, box->x2, box->y2));
 
 	if (op >= ARRAY_SIZE(gen5_blend_op)) {
 		DBG(("%s: fallback due to unhandled blend op: %d\n",
@@ -3514,6 +3517,8 @@ gen5_render_context_switch(struct kgem *kgem,
 	 */
 	if (kgem->mode == KGEM_BLT) {
 		struct sna *sna = to_sna_from_kgem(kgem);
+		DBG(("%s: forcing drawrect on next state emission\n",
+		     __FUNCTION__));
 		sna->render_state.gen5.drawrect_limit = -1;
 	}
 }

@@ -352,8 +352,11 @@ use_cpu_bo(struct sna *sna, PixmapPtr pixmap, const BoxRec *box, bool blt)
 			bool want_tiling;
 
 			if (priv->cpu_bo->pitch >= 4096) {
-				DBG(("%s: promoting snooped CPU bo due to TLB miss\n",
-				     __FUNCTION__));
+				DBG(("%s: size=%dx%d, promoting reused (%d) CPU bo due to TLB miss (%dx%d, pitch=%d)\n",
+				     __FUNCTION__, w, h, priv->source_count,
+				     pixmap->drawable.width,
+				     pixmap->drawable.height,
+				     priv->cpu_bo->pitch));
 				return NULL;
 			}
 
@@ -1949,4 +1952,41 @@ sna_render_composite_redirect_done(struct sna *sna,
 
 		kgem_bo_destroy(&sna->kgem, op->dst.bo);
 	}
+}
+
+bool
+sna_render_copy_boxes__overlap(struct sna *sna, uint8_t alu,
+			       PixmapPtr src, struct kgem_bo *src_bo, int16_t src_dx, int16_t src_dy,
+			       PixmapPtr dst, struct kgem_bo *dst_bo, int16_t dst_dx, int16_t dst_dy,
+			       const BoxRec *box, int n, const BoxRec *extents)
+{
+	ScreenPtr screen = dst->drawable.pScreen;
+	struct kgem_bo *bo;
+	PixmapPtr tmp;
+	bool ret = false;
+
+	tmp = screen->CreatePixmap(screen,
+				   extents->x2 - extents->x1,
+				   extents->y2 - extents->y1,
+				   dst->drawable.depth,
+				   SNA_CREATE_SCRATCH);
+	if (tmp == NULL)
+		return false;
+
+	bo = sna_pixmap_get_bo(tmp);
+	if (bo == NULL)
+		goto out;
+
+	ret = (sna->render.copy_boxes(sna, alu,
+				      src, src_bo, src_dx, src_dy,
+				      tmp, bo, -extents->x1, -extents->y1,
+				      box, n , 0) &&
+	       sna->render.copy_boxes(sna, alu,
+				      tmp, bo, -extents->x1, -extents->y1,
+				      dst, dst_bo, dst_dx, dst_dy,
+				      box, n , 0));
+
+out:
+	screen->DestroyPixmap(tmp);
+	return ret;
 }
