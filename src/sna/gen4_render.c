@@ -654,15 +654,12 @@ gen4_bind_bo(struct sna *sna,
 	assert(!kgem_bo_is_snoop(bo));
 
 	/* After the first bind, we manage the cache domains within the batch */
-	if (is_dst) {
-		domains = I915_GEM_DOMAIN_RENDER << 16 | I915_GEM_DOMAIN_RENDER;
-		kgem_bo_mark_dirty(&sna->kgem, bo);
-	} else
-		domains = I915_GEM_DOMAIN_SAMPLER << 16;
-
 	offset = kgem_bo_get_binding(bo, format);
-	if (offset)
+	if (offset) {
+		if (is_dst)
+			kgem_bo_mark_dirty(bo);
 		return offset * sizeof(uint32_t);
+	}
 
 	offset = sna->kgem.surface -=
 		sizeof(struct gen4_surface_state_padded) / sizeof(uint32_t);
@@ -670,6 +667,11 @@ gen4_bind_bo(struct sna *sna,
 
 	ss->ss0.surface_type = GEN4_SURFACE_2D;
 	ss->ss0.surface_format = format;
+
+	if (is_dst)
+		domains = I915_GEM_DOMAIN_RENDER << 16 | I915_GEM_DOMAIN_RENDER;
+	else
+		domains = I915_GEM_DOMAIN_SAMPLER << 16;
 
 	ss->ss0.data_return_format = GEN4_SURFACERETURNFORMAT_FLOAT32;
 	ss->ss0.color_blend = 1;
@@ -1385,7 +1387,7 @@ gen4_emit_state(struct sna *sna,
 		     kgem_bo_is_dirty(op->mask.bo)));
 		OUT_BATCH(MI_FLUSH);
 		kgem_clear_dirty(&sna->kgem);
-		kgem_bo_mark_dirty(&sna->kgem, op->dst.bo);
+		kgem_bo_mark_dirty(op->dst.bo);
 	}
 }
 
@@ -1996,7 +1998,7 @@ picture_is_cpu(PicturePtr picture)
 	if (!picture->pDrawable)
 		return false;
 
-	return is_cpu(picture->pDrawable) || is_dirty(picture->pDrawable);
+	return !is_gpu(picture->pDrawable);
 }
 
 static inline bool prefer_blt(struct sna *sna)
@@ -2063,7 +2065,7 @@ untransformed(PicturePtr p)
 static bool
 need_upload(PicturePtr p)
 {
-	return p->pDrawable && untransformed(p) && is_cpu(p->pDrawable);
+	return p->pDrawable && untransformed(p) && !is_gpu(p->pDrawable);
 }
 
 static bool
@@ -2271,7 +2273,8 @@ gen4_render_composite(struct sna *sna,
 			      src, dst,
 			      src_x, src_y,
 			      dst_x, dst_y,
-			      width, height, tmp))
+			      width, height,
+			      tmp, false))
 		return true;
 
 	if (gen4_composite_fallback(sna, src, mask, dst))

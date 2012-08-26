@@ -547,7 +547,7 @@ static void gen2_emit_target(struct sna *sna, const struct sna_composite_op *op)
 	assert(sna->render_state.gen2.vertex_offset == 0);
 
 	if (sna->render_state.gen2.target == op->dst.bo->unique_id) {
-		kgem_bo_mark_dirty(&sna->kgem, op->dst.bo);
+		kgem_bo_mark_dirty(op->dst.bo);
 		return;
 	}
 
@@ -1479,7 +1479,8 @@ try_blt(struct sna *sna,
 		     src->pDrawable->width, src->pDrawable->height));
 		return true;
 	}
-	return is_cpu(src->pDrawable);
+
+	return !is_gpu(src->pDrawable);
 }
 
 static bool
@@ -1722,7 +1723,7 @@ gen2_render_composite(struct sna *sna,
 				 src, dst,
 				 src_x, src_y,
 				 dst_x, dst_y,
-				 width, height, tmp);
+				 width, height, tmp, true);
 #endif
 
 	/* Try to use the BLT engine unless it implies a
@@ -1735,7 +1736,7 @@ gen2_render_composite(struct sna *sna,
 			      src_x, src_y,
 			      dst_x, dst_y,
 			      width, height,
-			      tmp))
+			      tmp, false))
 		return true;
 
 	if (gen2_composite_fallback(sna, src, mask, dst))
@@ -3123,8 +3124,16 @@ gen2_render_context_switch(struct kgem *kgem,
 {
 	struct sna *sna = container_of(kgem, struct sna, kgem);
 
+	if (!kgem->mode)
+		return;
+
 	/* Reload BLT registers following a lost context */
 	sna->blt_state.fill_bo = 0;
+
+	if (kgem_is_idle(kgem)) {
+		DBG(("%s: GPU idle, flushing\n", __FUNCTION__));
+		_kgem_submit(kgem);
+	}
 }
 
 bool gen2_render_init(struct sna *sna)

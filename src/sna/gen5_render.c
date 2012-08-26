@@ -639,16 +639,13 @@ gen5_bind_bo(struct sna *sna,
 	uint32_t *ss;
 
 	/* After the first bind, we manage the cache domains within the batch */
-	if (is_dst) {
-		domains = I915_GEM_DOMAIN_RENDER << 16 | I915_GEM_DOMAIN_RENDER;
-		kgem_bo_mark_dirty(&sna->kgem, bo);
-	} else
-		domains = I915_GEM_DOMAIN_SAMPLER << 16;
-
 	if (!DBG_NO_SURFACE_CACHE) {
 		offset = kgem_bo_get_binding(bo, format);
-		if (offset)
+		if (offset) {
+			if (is_dst)
+				kgem_bo_mark_dirty(bo);
 			return offset * sizeof(uint32_t);
+		}
 	}
 
 	offset = sna->kgem.surface -=
@@ -659,6 +656,10 @@ gen5_bind_bo(struct sna *sna,
 		 GEN5_SURFACE_BLEND_ENABLED |
 		 format << GEN5_SURFACE_FORMAT_SHIFT);
 
+	if (is_dst)
+		domains = I915_GEM_DOMAIN_RENDER << 16 | I915_GEM_DOMAIN_RENDER;
+	else
+		domains = I915_GEM_DOMAIN_SAMPLER << 16;
 	ss[1] = kgem_add_reloc(&sna->kgem, offset + 1, bo, domains, 0);
 
 	ss[2] = ((width - 1)  << GEN5_SURFACE_WIDTH_SHIFT |
@@ -1387,7 +1388,7 @@ gen5_emit_state(struct sna *sna,
 	if (kgem_bo_is_dirty(op->src.bo) || kgem_bo_is_dirty(op->mask.bo)) {
 		OUT_BATCH(MI_FLUSH);
 		kgem_clear_dirty(&sna->kgem);
-		kgem_bo_mark_dirty(&sna->kgem, op->dst.bo);
+		kgem_bo_mark_dirty(op->dst.bo);
 	}
 }
 
@@ -2012,8 +2013,7 @@ picture_is_cpu(PicturePtr picture)
 	if (!picture->pDrawable)
 		return false;
 
-
-	return is_cpu(picture->pDrawable) || is_dirty(picture->pDrawable);
+	return !is_gpu(picture->pDrawable);
 }
 
 static bool
@@ -2073,7 +2073,7 @@ untransformed(PicturePtr p)
 static bool
 need_upload(PicturePtr p)
 {
-	return p->pDrawable && untransformed(p) && is_cpu(p->pDrawable);
+	return p->pDrawable && untransformed(p) && !is_gpu(p->pDrawable);
 }
 
 static bool
@@ -2284,7 +2284,8 @@ gen5_render_composite(struct sna *sna,
 			      src, dst,
 			      src_x, src_y,
 			      dst_x, dst_y,
-			      width, height, tmp))
+			      width, height,
+			      tmp, false))
 		return true;
 
 	if (gen5_composite_fallback(sna, src, mask, dst))
@@ -3508,6 +3509,9 @@ static void
 gen5_render_context_switch(struct kgem *kgem,
 			   int new_mode)
 {
+	if (!kgem->mode)
+		return;
+
 	/* Ironlake has a limitation that a 3D or Media command can't
 	 * be the first command after a BLT, unless it's
 	 * non-pipelined.
@@ -3520,6 +3524,11 @@ gen5_render_context_switch(struct kgem *kgem,
 		DBG(("%s: forcing drawrect on next state emission\n",
 		     __FUNCTION__));
 		sna->render_state.gen5.drawrect_limit = -1;
+	}
+
+	if (kgem_is_idle(kgem)) {
+		DBG(("%s: GPU idle, flushing\n", __FUNCTION__));
+		_kgem_submit(kgem);
 	}
 }
 

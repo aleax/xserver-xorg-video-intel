@@ -1047,7 +1047,8 @@ gen7_emit_state(struct sna *sna,
 			need_stall = GEN7_BLEND(op->u.gen7.flags) != NO_BLEND;
 		gen7_emit_pipe_invalidate(sna, need_stall);
 		kgem_clear_dirty(&sna->kgem);
-		kgem_bo_mark_dirty(&sna->kgem, op->dst.bo);
+		if (op->dst.bo->exec)
+			kgem_bo_mark_dirty(op->dst.bo);
 		need_stall = false;
 	}
 	if (need_stall)
@@ -1348,15 +1349,12 @@ gen7_bind_bo(struct sna *sna,
 	COMPILE_TIME_ASSERT(sizeof(struct gen7_surface_state) == 32);
 
 	/* After the first bind, we manage the cache domains within the batch */
-	if (is_dst) {
-		domains = I915_GEM_DOMAIN_RENDER << 16 |I915_GEM_DOMAIN_RENDER;
-		kgem_bo_mark_dirty(&sna->kgem, bo);
-	} else
-		domains = I915_GEM_DOMAIN_SAMPLER << 16;
-
 	offset = kgem_bo_get_binding(bo, format);
-	if (offset)
+	if (offset) {
+		if (is_dst)
+			kgem_bo_mark_dirty(bo);
 		return offset * sizeof(uint32_t);
+	}
 
 	offset = sna->kgem.surface -=
 		sizeof(struct gen7_surface_state) / sizeof(uint32_t);
@@ -1364,6 +1362,10 @@ gen7_bind_bo(struct sna *sna,
 	ss[0] = (GEN7_SURFACE_2D << GEN7_SURFACE_TYPE_SHIFT |
 		 gen7_tiling_bits(bo->tiling) |
 		 format << GEN7_SURFACE_FORMAT_SHIFT);
+	if (is_dst)
+		domains = I915_GEM_DOMAIN_RENDER << 16 |I915_GEM_DOMAIN_RENDER;
+	else
+		domains = I915_GEM_DOMAIN_SAMPLER << 16;
 	ss[1] = kgem_add_reloc(&sna->kgem, offset + 1, bo, domains, 0);
 	ss[2] = ((width - 1)  << GEN7_SURFACE_WIDTH_SHIFT |
 		 (height - 1) << GEN7_SURFACE_HEIGHT_SHIFT);
@@ -2453,9 +2455,18 @@ gen7_composite_set_target(struct sna *sna, struct sna_composite_op *op, PictureP
 	return true;
 }
 
-inline static bool can_switch_rings(struct sna *sna)
+inline static bool can_switch_to_blt(struct sna *sna)
 {
-	return sna->kgem.mode == KGEM_NONE && sna->kgem.has_semaphores && !NO_RING_SWITCH;
+	if (sna->kgem.ring == KGEM_BLT)
+		return true;
+
+	if (NO_RING_SWITCH)
+		return false;
+
+	if (!sna->kgem.has_semaphores)
+		return false;
+
+	return sna->kgem.mode == KGEM_NONE || kgem_is_idle(&sna->kgem);
 }
 
 static inline bool untiled_tlb_miss(struct kgem_bo *bo)
@@ -2470,7 +2481,7 @@ static bool prefer_blt_bo(struct sna *sna, struct kgem_bo *bo)
 
 inline static bool prefer_blt_ring(struct sna *sna)
 {
-	return sna->kgem.ring != KGEM_RENDER || can_switch_rings(sna);
+	return sna->kgem.ring != KGEM_RENDER || can_switch_to_blt(sna);
 }
 
 static bool
@@ -2489,7 +2500,7 @@ try_blt(struct sna *sna,
 		return true;
 	}
 
-	if (can_switch_rings(sna)) {
+	if (can_switch_to_blt(sna)) {
 		if (sna_picture_is_solid(src, NULL))
 			return true;
 
@@ -2756,7 +2767,8 @@ gen7_render_composite(struct sna *sna,
 			      src, dst,
 			      src_x, src_y,
 			      dst_x, dst_y,
-			      width, height, tmp))
+			      width, height,
+			      tmp, false))
 		return true;
 
 	if (gen7_composite_fallback(sna, src, mask, dst))
@@ -2782,7 +2794,8 @@ gen7_render_composite(struct sna *sna,
 			      src, dst,
 			      src_x, src_y,
 			      dst_x, dst_y,
-			      width, height, tmp))
+			      width, height,
+			      tmp, false))
 		return true;
 
 	sna_render_reduce_damage(tmp, dst_x, dst_y, width, height);
@@ -3412,7 +3425,7 @@ fallback_blt:
 		if (too_large(extents.x2-extents.x1, extents.y2-extents.y1))
 			goto fallback_blt;
 
-		if ((flags & COPY_LAST || can_switch_rings(sna)) &&
+		if ((flags & COPY_LAST || can_switch_to_blt(sna)) &&
 		    sna_blt_compare_depth(&src->drawable, &dst->drawable) &&
 		    sna_blt_copy_boxes(sna, alu,
 				       src_bo, src_dx, src_dy,
