@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.20.5-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.20.5-1) experimental; urgency=low
 
   * New upstream release.
     - Remove patch to support passing a builder string, merged upstream
