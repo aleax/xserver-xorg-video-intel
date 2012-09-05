@@ -1,3 +1,353 @@
+commit d933f3a7965c9aa70f70477be3bfe94d5ded948b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 2 10:29:49 2012 +0100
+
+    2.20.6 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 62e7e69d88f7e5c8b0f0931fe887ee0c3bddb43f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 2 09:55:07 2012 +0100
+
+    sna: Tweak placement rules if we already have a CPU bo
+    
+    If we have a CPU bo, consider if it may be quicker to render to it then
+    create a GPU bo.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f837807cc257fbedd35fa6101dc0b4a57e5ad78d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 1 10:36:09 2012 +0100
+
+    sna/dri: Remove busy-wait spin from vblank chaining of swapbuffers
+    
+    The issue being that, due to the delay, the chained swap would miss its
+    intended vblank and so cause an unwanted reduction in frame throughput
+    and increase output latency even further. Since both client and server
+    have other rate-limiting processes in place, we can forgo the stall here
+    and still keep the clients in check.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=54274
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b56e8c5105c858452ca4eabf15b298fc06dfd3c8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 1 12:15:47 2012 +0100
+
+    sna: Nullify gpu_bo after free in case final release is deferred in destroy
+    
+    As we may defer the actual release of the pixmap until after completion
+    of the last shm operation, we need to make sure in that case we mark the
+    GPU bo as released to prevent a use-after-free.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c4d994014160d8c946af731196a908991c77d9f9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 1 10:44:24 2012 +0100
+
+    sna/gen2+: Add the missing assertions in case the drawrect is invalid
+    
+    Only the later gen had these useful assertions, add them to the rest
+    just in case.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 25c1b478a957ceb0474e7121840b7eed1ba2e140
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 1 09:49:34 2012 +0100
+
+    sna: Discard cached CPU upload early when clearing with a solid fill
+    
+    Otherwise we end up considering the GPU bo as a real target, causing
+    confusion and failed asserts.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 530b1d1516595cf14c5112d8833b870cd50eca46
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 30 22:21:57 2012 +0100
+
+    sna/dri: Use common routine for testing busyness after flush
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 00d8c776b3607dbdab32c1126f91a7a38b8065f6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Aug 30 21:47:17 2012 +0100
+
+    sna/dri: Hold a reference to the vsync blit
+    
+    Fixes regression from
+    
+    commit 96a921487ef00db03a12bec7b0821410d6b74c31
+    Author: Chris Wilson <chris@chris-wilson.co.uk>
+    Date:   Mon Aug 27 21:50:32 2012 +0100
+    
+        sna: Track outstanding requests per-ring
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b2a6c74c2159c9968c19400d61a11f4773724b4a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Aug 29 14:51:40 2012 +0100
+
+    sna: Remove inconsistent assertion
+    
+    As we now may not prefer to use the GPU even if all-damaged and clear,
+    asserting that if we choose to use the CPU if clear is now bogus.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit deaa1cac269be03f4ec44092f70349ff466d59de
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 28 22:23:22 2012 +0100
+
+    sna: Align active upload buffers to the next page for reuse
+    
+    If we write to the same page as it already active on the GPU then
+    despite the invalidation performed at the beginning of each batch, we do
+    not seem to correctly sample the new data.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=52299
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9e0305a3928f253ded6c8e141a4dd42be3952eb9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 28 20:49:20 2012 +0100
+
+    sna: Discard inplace flag if we create a CPU map for the upload buffer
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f3e122554e88da0351bfb9a7a722f0715553689b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 28 21:27:04 2012 +0100
+
+    sna: Propagate the request to flush rather than directly submit the batch
+    
+    The subtly is that we need to reset the mode correctly after
+    submitting the batch which was not handled by kgem_flush(). If we fail
+    to set the appropriate mode then the next operation will be on a random
+    ring, which can prove fatal with SandyBridge+.
+    
+    Reported-by: Reinis Danne <reinis.danne@gmail.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b5c8efe4309248e62d94d80b37a70775284ae985
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Aug 28 08:33:00 2012 +0100
+
+    sna: Make sure we reset the domain tracking when exporting DRI bo
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 96a921487ef00db03a12bec7b0821410d6b74c31
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 21:50:32 2012 +0100
+
+    sna: Track outstanding requests per-ring
+    
+    In order to properly track when the GPU is idle, we need to account for
+    the completion order that may differ on architectures like SandyBridge
+    with multiple mostly independent rings.
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=54127
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 26c731efc2048663b6a19a7ed7db0e94243ab30f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 20:50:08 2012 +0100
+
+    sna: Ensure that we create a GTT mapping for the inplace upload buffer
+    
+    As the code will optimistically convert a request for a GTT mapping into
+    a CPU mapping if the object is still in the CPU domain, we need to
+    overrule that in this case where we explicitly want to write directly
+    into the GTT and furthermore keep the buffer around in an upload cache.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=52299
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2cbf88980ede50370b97f32e565dea33db16ac44
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 20:07:17 2012 +0100
+
+    sna: Force the stall if using a busy ShmPixmap bo with PutImage
+    
+    As we will stall in the near future to serialise access with the
+    ShmPixmap, we may as well stall first and do a simple copy using the
+    CPU in this highly unlikely scenario.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 705103d77e6b80d796a4535cade96cb6e9ebece3
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 20:07:19 2012 +0100
+
+    sna: Add a modicum of DBG to kgem_is_idle()
+    
+    Print out the handle of the bo we just checked.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8218e5da2b177ca9cd0e2b1e7dbe114e5ef2ebf0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 19:36:03 2012 +0100
+
+    sna: Fix crash with broken DBG missing one of its arguments
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=54127
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 593f549b45fbb1528472feed51207d84901d142e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 16:43:19 2012 +0100
+
+    sna: A little more DBG to try and identify ratelimiting ops
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 71ac12e9b6ed00c28993637aafd5186a2ba26256
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 15:49:59 2012 +0100
+
+    sna: Assert that the bo is marked as 'flush' when exported to DRI clients
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cf64c8ce758cfa5d3bcd1b7626ff94cce7a84636
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 13:59:56 2012 +0100
+
+    sna: Upload PutImage inplace to a fresh GPU bo if the device doesn't snoop
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3c6758fc4a50ecfce9ed317fec669cc48addedcf
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 11:58:05 2012 +0100
+
+    sna: Flush the batch if it references a ShmPixmap and the GPU is idle
+    
+    This helps minimise the stall when syncing with the GPU before sending
+    the next reply to the Client.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f21079bad6e8316baf5d0295d6e7a809041bce06
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Aug 27 11:25:28 2012 +0100
+
+    Revert "sna: Cleanup composite redirection after substituting the BLT"
+    
+    This reverts commit 5a5212117e7a73ce3fffb87c60a505a849e38c36.
+    
+    The clean up is in effect too early, as this is during preparation and
+    the actual work is already being correctly done at the end.
+
+commit 414e87255cdee6eb556703ddefd194af71b985ed
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 19:47:31 2012 +0100
+
+    Add Option "Backlight" to override the probed backlight control interface
+    
+    The automatic selection may not correspond with the correct backlight
+    (such as in a multi-gpu, multi-panel device) or the user may simply
+    prefer another control interface. This allows them to override the
+    chosen interface using
+    
+      Option "Backlight" "my-backlight"
+    
+    to specify '/sys/class/backlight/my-backlight' as the interface to use
+    instead.
+    
+    Suggested-by: Alon Levy <alevy@redhat.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=29273
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d4f7c58186849374cd929e20fa49ea2e93939a69
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 17:01:55 2012 +0100
+
+    sna/gen5+: Use the common methods for choosing the render targets
+    
+    This should afford us much more flexibility in where we render.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3c88b5f693c29b990d69f96508b121ce97a7209e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Aug 25 11:49:30 2012 +0100
+
+    sna: Use a fast span emitter for mono trapezoids without damage or clipping
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8e10a5b348a37feadcf935ec7694e46cc0802bdf
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 14:53:12 2012 +0100
+
+    sna/gen6+: Do not call sna_blt_composite() after prepping the composite op
+    
+    As sna_blt_composite() will overwrite parts of the composite op as it
+    checks whether or not it can execute that operation, it will lead to a
+    crash as the normal render path finds the op corrupt. (The BLT
+    conversion functions cater for the cases where we may wish to switch
+    pipelines after choosing src/dst bo.)
+    
+    Reported-by: rei4dan@gmail.com
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cbbe7727e766a5ee8767673feb6c8cdec38a7051
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 14:43:47 2012 +0100
+
+    sna/gen6+: Simplify prefer_blt_bo
+    
+    As we already check the tiling state, so all we need to then check is
+    that the pitch is within the BLT constraint.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0c15824a8143a288716d2eacf03252cc54eb9466
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 14:29:41 2012 +0100
+
+    sna: Add some DBG to kgem_is_idle()
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d432983421286d343f7c487c12c7244b711f5a66
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 13:43:35 2012 +0100
+
+    sna: Add some DBG to BLT composite substitute to show if redirection is used
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5a5212117e7a73ce3fffb87c60a505a849e38c36
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 13:38:23 2012 +0100
+
+    sna: Cleanup composite redirection after substituting the BLT
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 335821d588460c253b2ba2c8616a7c46e5ad0150
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Aug 26 13:29:04 2012 +0100
+
+    sna/gen4+: Check for allocation failure for the clear solid bo
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit b5c77a6aaf520e331e82409b2592911cb1bb3100
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sun Aug 26 12:48:18 2012 +0100
