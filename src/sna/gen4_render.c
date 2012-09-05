@@ -1283,6 +1283,9 @@ gen4_emit_drawing_rectangle(struct sna *sna, const struct sna_composite_op *op)
 	uint32_t limit = (op->dst.height - 1) << 16 | (op->dst.width - 1);
 	uint32_t offset = (uint16_t)op->dst.y << 16 | (uint16_t)op->dst.x;
 
+	assert(!too_large(op->dst.x, op->dst.y));
+	assert(!too_large(op->dst.width, op->dst.height));
+
 	if (sna->render_state.gen4.drawrect_limit == limit &&
 	    sna->render_state.gen4.drawrect_offset == offset)
 		return;
@@ -2306,7 +2309,8 @@ gen4_render_composite(struct sna *sna,
 		DBG(("%s: failed to prepare source\n", __FUNCTION__));
 		goto cleanup_dst;
 	case 0:
-		gen4_composite_solid_init(sna, &tmp->src, 0);
+		if (!gen4_composite_solid_init(sna, &tmp->src, 0))
+			goto cleanup_dst;
 		/* fall through to fixup */
 	case 1:
 		if (mask == NULL &&
@@ -2361,7 +2365,8 @@ gen4_render_composite(struct sna *sna,
 				DBG(("%s: failed to prepare mask\n", __FUNCTION__));
 				goto cleanup_src;
 			case 0:
-				gen4_composite_solid_init(sna, &tmp->mask, 0);
+				if (!gen4_composite_solid_init(sna, &tmp->mask, 0))
+					goto cleanup_src;
 				/* fall through to fixup */
 			case 1:
 				gen4_composite_channel_convert(&tmp->mask);
@@ -2660,7 +2665,8 @@ gen4_render_composite_spans(struct sna *sna,
 	case -1:
 		goto cleanup_dst;
 	case 0:
-		gen4_composite_solid_init(sna, &tmp->base.src, 0);
+		if (!gen4_composite_solid_init(sna, &tmp->base.src, 0))
+			goto cleanup_dst;
 		/* fall through to fixup */
 	case 1:
 		gen4_composite_channel_convert(&tmp->base.src);
