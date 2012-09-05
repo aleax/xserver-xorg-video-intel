@@ -1,6 +1,6 @@
 xserver-xorg-video-intel (2:2.20.6-1) UNRELEASED; urgency=low
 
-  * New upstream release.
+  * New upstream bugfix release.
   * Added uxa-flush-batch-immediately.diff. (LP: #912134)
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 05 Sep 2012 17:07:07 +0300
