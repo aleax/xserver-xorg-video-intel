@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.20.6-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.20.7-1) UNRELEASED; urgency=low
 
   * New upstream bugfix release.
   * Added uxa-flush-batch-immediately.diff. (LP: #912134)
