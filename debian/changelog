@@ -1,3 +1,11 @@
+xserver-xorg-video-intel (2:2.20.9-0ubuntu1) quantal; urgency=low
+
+  * Merge from unrelease debian git.
+    - fixes racy UXA pageflip code (LP: #966744)
+  * Drop dont-run-intel-mode-fini-before-preinit.diff, upstream.
+
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Sat, 29 Sep 2012 16:45:35 +0300
+
 xserver-xorg-video-intel (2:2.20.9-1) UNRELEASED; urgency=low
 
   * New upstream bugfix release.
