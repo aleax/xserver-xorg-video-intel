@@ -1,8 +1,13 @@
 xserver-xorg-video-intel (2:2.20.9-1) UNRELEASED; urgency=low
 
+  [ Timo Aaltonen ]
   * New upstream bugfix release.
     - Fixes a long-standing bug in UXA pageflip code that was the
       source of many GPU hangs.
+
+  [ Maarten Lankhorst ]
+  * Add patch to fix a valgrind error.
+    - fix-glamor-check.diff
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 05 Sep 2012 17:07:07 +0300
 
