@@ -1,8 +1,9 @@
-xserver-xorg-video-intel (2:2.20.9-0ubuntu2) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.20.9-0ubuntu2) quantal; urgency=low
 
+  [ Maarten Lankhorst ]
   * Add fix-glamor-check.diff to fix a valgrind error, upstream.
 
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 01 Oct 2012 14:22:03 +0200
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Mon, 01 Oct 2012 15:39:54 +0300
 
 xserver-xorg-video-intel (2:2.20.9-0ubuntu1) quantal; urgency=low
 
