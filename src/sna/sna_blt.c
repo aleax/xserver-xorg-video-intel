@@ -84,6 +84,7 @@ static const uint8_t fill_ROP[] = {
 
 static void nop_done(struct sna *sna, const struct sna_composite_op *op)
 {
+	assert(sna->kgem.nbatch <= KGEM_BATCH_SIZE(&sna->kgem));
 	(void)sna;
 	(void)op;
 }
@@ -97,7 +98,9 @@ static void gen6_blt_copy_done(struct sna *sna, const struct sna_composite_op *o
 		b[0] = XY_SETUP_CLIP;
 		b[1] = b[2] = 0;
 		kgem->nbatch += 3;
+		assert(kgem->nbatch < kgem->surface);
 	}
+	assert(sna->kgem.nbatch <= KGEM_BATCH_SIZE(&sna->kgem));
 	(void)op;
 }
 
@@ -143,8 +146,8 @@ static bool sna_blt_fill_init(struct sna *sna,
 	blt->bpp = bpp;
 
 	kgem_set_mode(kgem, KGEM_BLT);
-	if (!kgem_check_bo_fenced(kgem, bo) ||
-	    !kgem_check_batch(kgem, 12)) {
+	if (!kgem_check_batch(kgem, 12) ||
+	    !kgem_check_bo_fenced(kgem, bo)) {
 		_kgem_submit(kgem);
 		assert(kgem_check_bo_fenced(kgem, bo));
 		_kgem_set_mode(kgem, KGEM_BLT);
@@ -178,6 +181,7 @@ static bool sna_blt_fill_init(struct sna *sna,
 		b[7] = 0;
 		b[8] = 0;
 		kgem->nbatch += 9;
+		assert(kgem->nbatch < kgem->surface);
 
 		sna->blt_state.fill_bo = bo->unique_id;
 		sna->blt_state.fill_pixel = pixel;
@@ -236,6 +240,7 @@ inline static void sna_blt_fill_one(struct sna *sna,
 
 	b = kgem->batch + kgem->nbatch;
 	kgem->nbatch += 3;
+	assert(kgem->nbatch < kgem->surface);
 
 	b[0] = blt->cmd;
 	b[1] = y << 16 | x;
@@ -369,7 +374,8 @@ static void sna_blt_alpha_fixup_one(struct sna *sna,
 	assert(width > 0);
 	assert(height > 0);
 
-	if (!kgem_check_batch(kgem, 12) || !kgem_check_reloc(kgem, 2)) {
+	if (!kgem_check_batch(kgem, 12) ||
+	    !kgem_check_reloc(kgem, 2)) {
 		_kgem_submit(kgem);
 		_kgem_set_mode(kgem, KGEM_BLT);
 	}
@@ -397,6 +403,7 @@ static void sna_blt_alpha_fixup_one(struct sna *sna,
 	b[10] = 0;
 	b[11] = 0;
 	kgem->nbatch += 12;
+	assert(kgem->nbatch < kgem->surface);
 }
 
 static void sna_blt_copy_one(struct sna *sna,
@@ -428,21 +435,27 @@ static void sna_blt_copy_one(struct sna *sna,
 	    kgem->batch[kgem->nbatch-3] == ((uint32_t)(dst_y+height) << 16 | (uint16_t)(dst_x+width)) &&
 	    kgem->reloc[kgem->nreloc-1].target_handle == blt->bo[1]->handle) {
 		DBG(("%s: replacing last fill\n", __FUNCTION__));
-		b = kgem->batch + kgem->nbatch - 6;
-		b[0] = blt->cmd;
-		b[1] = blt->br13;
-		b[5] = (src_y << 16) | src_x;
-		b[6] = blt->pitch[0];
-		b[7] = kgem_add_reloc(kgem, kgem->nbatch + 7 - 6,
-				      blt->bo[0],
-				      I915_GEM_DOMAIN_RENDER << 16 |
-				      KGEM_RELOC_FENCED,
-				      0);
-		kgem->nbatch += 8 - 6;
-		return;
+		if (kgem_check_batch(kgem, 8-6)) {
+			b = kgem->batch + kgem->nbatch - 6;
+			b[0] = blt->cmd;
+			b[1] = blt->br13;
+			b[5] = (src_y << 16) | src_x;
+			b[6] = blt->pitch[0];
+			b[7] = kgem_add_reloc(kgem, kgem->nbatch + 7 - 6,
+					      blt->bo[0],
+					      I915_GEM_DOMAIN_RENDER << 16 |
+					      KGEM_RELOC_FENCED,
+					      0);
+			kgem->nbatch += 8 - 6;
+			assert(kgem->nbatch < kgem->surface);
+			return;
+		}
+		kgem->nbatch -= 6;
+		kgem->nreloc--;
 	}
 
-	if (!kgem_check_batch(kgem, 8) || !kgem_check_reloc(kgem, 2)) {
+	if (!kgem_check_batch(kgem, 8) ||
+	    !kgem_check_reloc(kgem, 2)) {
 		_kgem_submit(kgem);
 		_kgem_set_mode(kgem, KGEM_BLT);
 	}
@@ -466,6 +479,7 @@ static void sna_blt_copy_one(struct sna *sna,
 			      KGEM_RELOC_FENCED,
 			      0);
 	kgem->nbatch += 8;
+	assert(kgem->nbatch < kgem->surface);
 }
 
 bool
@@ -839,6 +853,7 @@ inline static void _sna_blt_fill_box(struct sna *sna,
 
 	b = kgem->batch + kgem->nbatch;
 	kgem->nbatch += 3;
+	assert(kgem->nbatch < kgem->surface);
 
 	b[0] = blt->cmd;
 	*(uint64_t *)(b+1) = *(const uint64_t *)box;
@@ -868,6 +883,7 @@ inline static void _sna_blt_fill_boxes(struct sna *sna,
 		nbox -= nbox_this_time;
 
 		kgem->nbatch += 3 * nbox_this_time;
+		assert(kgem->nbatch < kgem->surface);
 		while (nbox_this_time >= 8) {
 			b[0] = cmd; *(uint64_t *)(b+1) = *(const uint64_t *)box++;
 			b[3] = cmd; *(uint64_t *)(b+4) = *(const uint64_t *)box++;
@@ -1913,6 +1929,7 @@ static void convert_done(struct sna *sna, const struct sna_composite_op *op)
 		b[0] = XY_SETUP_CLIP;
 		b[1] = b[2] = 0;
 		kgem->nbatch += 3;
+		assert(kgem->nbatch < kgem->surface);
 	}
 
 	kgem_bo_destroy(kgem, op->src.bo);
@@ -2229,6 +2246,7 @@ static bool sna_blt_fill_box(struct sna *sna, uint8_t alu,
 			      0);
 	b[5] = color;
 	kgem->nbatch += 6;
+	assert(kgem->nbatch < kgem->surface);
 
 	sna->blt_state.fill_bo = bo->unique_id;
 	sna->blt_state.fill_pixel = color;
@@ -2285,8 +2303,8 @@ bool sna_blt_fill_boxes(struct sna *sna, uint8_t alu,
 	}
 
 	kgem_set_mode(kgem, KGEM_BLT);
-	if (!kgem_check_bo_fenced(kgem, bo) ||
-	    !kgem_check_batch(kgem, 12)) {
+	if (!kgem_check_batch(kgem, 12) ||
+	    !kgem_check_bo_fenced(kgem, bo)) {
 		_kgem_submit(kgem);
 		assert(kgem_check_bo_fenced(&sna->kgem, bo));
 		_kgem_set_mode(kgem, KGEM_BLT);
@@ -2320,6 +2338,7 @@ bool sna_blt_fill_boxes(struct sna *sna, uint8_t alu,
 		b[7] = 0;
 		b[8] = 0;
 		kgem->nbatch += 9;
+		assert(kgem->nbatch < kgem->surface);
 
 		sna->blt_state.fill_bo = bo->unique_id;
 		sna->blt_state.fill_pixel = pixel;
@@ -2350,6 +2369,7 @@ bool sna_blt_fill_boxes(struct sna *sna, uint8_t alu,
 
 			b = kgem->batch + kgem->nbatch;
 			kgem->nbatch += 3;
+			assert(kgem->nbatch < kgem->surface);
 			b[0] = cmd;
 			*(uint64_t *)(b+1) = *(const uint64_t *)box;
 			box++;
@@ -2378,6 +2398,7 @@ bool sna_blt_fill_boxes(struct sna *sna, uint8_t alu,
 			b[7] = 0;
 			b[8] = 0;
 			kgem->nbatch += 9;
+			assert(kgem->nbatch < kgem->surface);
 		}
 	} while (nbox);
 
@@ -2510,6 +2531,7 @@ bool sna_blt_copy_boxes(struct sna *sna, uint8_t alu,
 						      KGEM_RELOC_FENCED,
 						      0);
 				kgem->nbatch += 8;
+				assert(kgem->nbatch < kgem->surface);
 				box++;
 			} while (--nbox_this_time);
 
@@ -2561,6 +2583,7 @@ bool sna_blt_copy_boxes(struct sna *sna, uint8_t alu,
 						      KGEM_RELOC_FENCED,
 						      0);
 				kgem->nbatch += 8;
+				assert(kgem->nbatch < kgem->surface);
 				box++;
 			} while (--nbox_this_time);
 
@@ -2577,6 +2600,7 @@ bool sna_blt_copy_boxes(struct sna *sna, uint8_t alu,
 		b[0] = XY_SETUP_CLIP;
 		b[1] = b[2] = 0;
 		kgem->nbatch += 3;
+		assert(kgem->nbatch < kgem->surface);
 	}
 
 	sna->blt_state.fill_bo = 0;
