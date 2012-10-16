@@ -1,4 +1,4 @@
-xserver-xorg-video-intel (2:2.20.9-1) UNRELEASED; urgency=low
+xserver-xorg-video-intel (2:2.20.10-1) UNRELEASED; urgency=low
 
   * New upstream bugfix release.
     - Fixes a long-standing bug in UXA pageflip code that was the

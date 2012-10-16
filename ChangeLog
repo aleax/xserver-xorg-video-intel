@@ -1,3 +1,605 @@
+commit b42d81b63f5b6a571faffaadd42c74adce40128a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 14 09:15:38 2012 +0100
+
+    2.20.10 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 877e9c57c788cb3d4db1e96e519b26ca5d542465
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 12 17:57:28 2012 +0100
+
+    sna/overlay: Trim suggested BestSize to fit within the overlay constraints
+    
+    As the maximum reported image sizes are for the source image, we should
+    be careful not to recommend the application use an output Window larger
+    than can be handled by the overlay hardware. So shrink it to fit, whilst
+    preserving the aspect ratio.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1ec41590c9d142a77a2fdcfcd9a762aca99d9d86
+Author: Paulo Zanoni <paulo.r.zanoni@intel.com>
+Date:   Thu Oct 11 18:10:17 2012 -0300
+
+    Fix possible_clones computation for shared encoders between outputs
+    
+    Libdrm's possible_clones is a mask of encoders. Xorg's possible_clones
+    is a mask of outputs, so we just can't do the following:
+    
+      output->possible_clones = kencoder->possible_clones;
+    
+    This is a problem on Haswell because, at least with the current
+    patches floating on the mailing list, there is more than one connector
+    per encoder.
+    
+    This patch writes the code to properly translate libdrm's encoder mask
+    into Xorg's output mask.
+    
+    Signed-off-by: Paulo Zanoni <paulo.r.zanoni@intel.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0b92a5a3062d73666279e17ac2d711314bcd8dfe
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 11 12:16:03 2012 +0100
+
+    sna: Correct a bogus assertion after inplace PutImage
+    
+    If we are forced to use the GPU bo as the target because the CPU bo is
+    busy, the priv->cpu flag is likely to remain set, so we need to clear it
+    rather than fail the assertion that is false.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c51aaa731e5cffc892e59730194ad7c98789b02b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 11 11:36:00 2012 +0100
+
+    sna/gen7: Replace bogus state tracking assertion
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a56fa2fb4aad172be905c3abeefd987804553809
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 11 10:55:34 2012 +0100
+
+    sna: Rearrange switch to suppress a compiler warning in sna_copy_plane_blt()
+    
+    Hide the impossible default case so that static analyzers are not
+    confused.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 94a98d1c472ce0fc7601421a2bcfbd0524d2bc93
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 11 08:42:21 2012 +0100
+
+    sna: Limit available space for gen2
+    
+    Since pre-g33 chipsets impose massive alignment restrictions on objects
+    within the aperture we need to further restrict the amount of available
+    space to be sure we have sufficient room to accommodate the alignment.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d3ae85dd01952ecff7b780e30a43571146aa61ea
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 10 17:27:38 2012 +0100
+
+    sna: Use high/low watermarks for fenced aperture counting
+    
+    This helps with fitting larger operations into the small apertures of
+    gen2, which due to the lax accounting could trigger ENOSPC.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit dadffd0061e2b14db397608e3cedfe9c76e546c8
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Oct 11 14:30:29 2012 +1000
+
+    intel: fix fullscreen damage posting on pageflip
+    
+    While playing with MPX and sw cursor I noticed page flips won't
+    end up misrendering some bits, so the sw cursor was replacing the
+    bits on the wrong pixmap.
+    
+    Fix the damage handling to be correct and append damage before swapping
+    the pointers and process damage after.
+    
+    This fixes misrendering with MPX cursors under a fullscreen compositor,
+    that pageflips.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+    [ickle: The secret is that damage is sometimes reported before the
+    rendering in DamageRegionAppend, and sometimes afterwards in
+    DamageRegionProcessPending. For instance, the software cursor operates
+    prior to being rendered over.]
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a1ea19a3edaac6e1e5d240b75b7c5fdcfea0e0a8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 10 23:20:13 2012 +0100
+
+    sna: Prevent sign-extension when manipulating strides
+    
+    Reported-by: Prit Laes <plaes@plaes.org>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55823
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d73f5b5bb1a81421f1fdc3ac3b460a8ad90be0ad
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 9 19:41:10 2012 +0100
+
+    sna/gen6+: Initialize the damage for fill-boxes
+    
+    In case we need to redirect the rendering for a large render target, we
+    need to initialize the damage pointer.
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: ttps://bugs.freedesktop.org/show_bug.cgi?id=55812
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ae6ae91baa0574a7a23ab76afac5e2d827c49c20
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 9 18:36:59 2012 +0100
+
+    sna: Check the map exists before trying to release it
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: ttps://bugs.freedesktop.org/show_bug.cgi?id=55812
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8bbfa88a8691f6c1b2903090c3cd3159126ef563
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 9 17:26:39 2012 +0100
+
+    sna: Also check the bg rrop for reads when deciding upon fallback placement
+    
+    Reported-and-tested-by: chr.ohm@gmx.net
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55810
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f8a005d1f984382272ad10cabd88c0422d4e76e8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 9 00:23:24 2012 +0100
+
+    sna: Pass the region, not its pointer, when moving the GC to the CPU
+    
+    Fortunately, the sgc->region was not used along that particular fallback
+    path.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit fb5205a86da09b344dbc20598655e917c263125c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 8 09:12:33 2012 +0100
+
+    sna/gen5: Flush pipelined ops when changing state
+    
+    When is a pipelined operation, not pipelined? That is the mystery posed
+    by our hardware!
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit bed64c998df538046d77eeea90598f48077dab5f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 8 00:13:03 2012 +0100
+
+    sna: Fix check_reloc_and_exec typo
+    
+    Garbage xorg includes hiding genuine compiler warnings ftl once again.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2ac3776be85d857a57ce7b742e52cd6091d2befb
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 22:41:25 2012 +0100
+
+    sna: Check that we have sufficient space for a copy when replacing a fill
+    
+    Reported-by: Timo Kamph <timo@kamph.org>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55700
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1a5d5b9ae5771d81da16222582acedb1557386c8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 22:41:02 2012 +0100
+
+    sna: Check that for batch overflows after advancing a BLT
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b41ecda69f2e6c9f8adf79dd24ded45740bcc015
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 22:39:36 2012 +0100
+
+    sna: Only reduce the maximum batch size for old kernels
+    
+    Be careful we not increase the batch size to span multiple pages on 865g!
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3ca7f8be5bcfec3c50c43bd485f0c57b931f8206
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 22:39:10 2012 +0100
+
+    sna/gen2: Count the number of dwords required for the invariant
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4d2dba0ba70c2b217a777243e8a89f7a5c5349a9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 10:46:19 2012 +0100
+
+    Use path for intel-gen4asm derived from pkg-config
+    
+    As we use pkg-config to determine whether to use intel-gen4asm, we
+    should also use it to locate the right version of intel-gen4asm to use.
+    This allows the user to install the assembler in a non-standard path for
+    cross-builds and similar.
+    
+    Reported-by: Josh Tripplet <josh@freedesktop.org>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55646
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 249051d90fb0ab0bea5561a04ee2a5d0a2238ff1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 09:33:06 2012 +0100
+
+    sna/gen2: And the other compile failure
+    
+    Typing on Sunday before coffee is a very bad idea.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d11a15f04dfaf8ba236d7255c52e67d8602ab806
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 09:30:38 2012 +0100
+
+    sna/gen2: Compile fix
+    
+    Be careful when cutting and pasting assertions!
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d2a26adc8e7b02aea204101f207f740bbde62414
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 7 08:59:32 2012 +0100
+
+    sna/gen2: Add a couple of assertions to track down a batch overflow
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55700
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3680aa4976407886eb4be9878d5296d5a1fadccf
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 5 12:33:32 2012 +0100
+
+    sna: Do not create an unsnooped CPU mapping for readbacks
+    
+    Otherwise we notice that we have a CPU mmap during read synchronized and
+    presume that we need not take any further action. However...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d717a67ff4a59d0c2cc108cedbecdc20b4c9fb97
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 5 10:27:26 2012 +0100
+
+    configure: Make rebuilding of the gen4 assembly files explicit
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55646
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5b74a2dc5270094810ec0cf8039fd3b3ab0815b5
+Author: Josh Triplett <josh@joshtriplett.org>
+Date:   Thu Oct 4 17:48:24 2012 -0700
+
+    Fix out-of-tree builds with intel-gen4asm installed
+    
+    The make rules to compile shaders with intel-gen4asm referenced the .g4a
+    source files without using $(srcdir), which broke out-of-tree builds.
+    Reference .g4a source files via $(srcdir), and add $(srcdir) to m4's
+    include path, fixing out-of-tree builds.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55645
+    Signed-off-by: Josh Triplett <josh@joshtriplett.org>
+
+commit 07a46333477898cfc2020ba5da9a6a7a866b21a7
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 5 10:17:45 2012 +0100
+
+    sna: Refactor the fallback CopyArea to use the common region computation
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3ad3a2d839f8e2f5b02f883e2b4131d4c0901fb0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 15:14:08 2012 +0100
+
+    sna/gen2: Tidy DBG code for disabling composite operations
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 6054f8e1120d499f70e7bd4809b3fc6994792bcb
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 14:40:59 2012 +0100
+
+    sna: Remove another sna_pixmap->cpu assertion that was not true
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit acf354d7fb575c468e86a5935cad095015ccadb1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 14:35:14 2012 +0100
+
+    sna: Propagate failures from compositing glyph masks
+    
+    So that we can fallback correctly. This is primarily using for debugging
+    failure paths...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c7ad655359b746917deeac3efb9eb843465cf4b9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 13:52:55 2012 +0100
+
+    sna/gen2: Prevent using the GTT maps with I915_TILING_Y on 855gm
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0a2c5eb7669c249194b41d624ca05654a8d7035b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 13:51:23 2012 +0100
+
+    sna: Once again look into assertions around sna_pixmap->cpu
+    
+    Revert back to basics, and clear the CPU flag everytime we use the GPU,
+    rather than try to avoid clearing it along some paths.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4d3b849c57d78f0447334c5c0871d8bd78e0af24
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 12:14:47 2012 +0100
+
+    sna: Avoid using the gpu for uploads whilst wedged
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4608e482615d4b4599608c7bc17ac8a9f9293840
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 4 11:23:36 2012 +0100
+
+    sna/gen2: Allow fine damage tracking for render operations
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 83b8669abc7415202f9e0c764de675ffbcf45dac
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 23:45:28 2012 +0100
+
+    sna/gen2: Setup invariant blend arguments
+    
+    I thought these were completely specified via the LOAD_STATE_IMMEDIATE
+    commands we used whilst seting up the render pipeline. I was wrong.
+    
+    Reported-by: Timo Kamph <timo@kamph.org>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55455
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b71af5dc626adfdf7d753e8e61fb13e8b9290d17
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 22:53:57 2012 +0100
+
+    sna: Clear sna_pixmap->cpu when destroying the CPU damage
+    
+    So that we keep the assertion checks that without CPU damage we can not
+    be on the cpu.
+    
+    Reported-by: Clemens Eisserer <linuxhippy@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55591
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0d42872d1e0bab1808c0a544c7ece049da103825
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 14:42:19 2012 +0100
+
+    sna: Protect against undefined O_CLOEXEC
+    
+    Reported-by: Giovanni Mariani <mc2374@mclink.it>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55577
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a683643ebf9120bd73a7cd740b5fb24f7e8e797b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 14:13:13 2012 +0100
+
+    sna: Fix an instance of undamaged tracking
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 47c76bb9680eee89d1cef86058782a7073ca4a47
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 14:12:50 2012 +0100
+
+    sna/gen7: Tidy detection of unbounded render op
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3e770f09dbe76287293fea0a8a1f231885aa1c1f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 13:00:25 2012 +0100
+
+    sna/dri: Delay the deactivation of the pageflipping
+    
+    As we need to clflush the scanout buffer as we return it to the bo cache
+    on SNB+, it is costly to terminate the pageflipping as soon as we drop a
+    frame as mesa often fails to keep up to the vrefresh rate.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b3a502a7057649b284601bdd5110b136ab1f5fbb
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 3 11:46:57 2012 +0100
+
+    sna: Review sna_pixmap->cpu tracking
+    
+    Notably 52b211cb15b3 was triggering a few assertions.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit bf44d9965b5cc0f0ee31ba2579783d8194fff756
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 2 12:22:51 2012 +0100
+
+    sna: Prevent sna_damage_contains_box__no_reduce() from a NULL deref
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0ae6c2ccb006a99e8d7bbfff77f98cc58f62ce2f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 2 11:44:16 2012 +0100
+
+    sna: Actually upload the damage when replacing a busy CPU bo for PutImage
+    
+    Reported-by: Roman Jarosz <kedgedev@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55508
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 52b211cb15b3bfe33a61cafcd8dcc1c9fbf20243
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 1 23:55:37 2012 +0100
+
+    sna: Tweak CPU damage partial upload paths
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1fc3fa699c0b4cae5259d9e439f84ede4a6012b2
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 1 22:42:26 2012 +0100
+
+    sna: Avoid accumulating damage to the CPU if it is already damaged
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8c2821d77c4b3bdd4d40d4a2c69f935a9eb0fd47
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 2 11:31:40 2012 +0100
+
+    sna: Remember to call ValidatePicture() before using newly created Pictures
+    
+    Reported-by: Marco De Michele <marco.demichele@taolab.it>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55527
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 51202798862c79ad417936cfe2d1847b1da4ab87
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 1 13:06:42 2012 +0100
+
+    uxa: Remove USE_GLAMOR check from unrealize glyph caches
+    
+    In an interesting twist during teardown, the driver info structure is
+    freed long before the caches. However, the glyph cache teardown was
+    checking to see if glamor was enabled to see if it could skip the
+    teardown. In fact, since we won't have created the glyph caches in that
+    circumstances it was safe any way.
+    
+    Reported-by: Maarten Lankhorst <m.b.lankhorst@gmail.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ba1dea5e373b8d7b410c07df897acc4d11079f63
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 1 11:19:41 2012 +0100
+
+    sna/gen2: Clear STIPPLE setup before rendering with the 3D pipeline
+    
+    One over-zealous removal too many.
+    
+    Reported-by: Timo Kamph <timo@kamph.org>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55455
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit eec12faf82370a8540114287c224953aa66d7bd9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 30 18:39:06 2012 +0100
+
+    sna/dri: Check back/front buffers of a pixmap for format change
+    
+    Highly unlikely.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8e23251aad6d56a59e626b623e59bafac3143562
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 30 13:52:34 2012 +0100
+
+    sna: Cache repeated use of the temporary CPU mapping for tiled_x uploads
+    
+    Fixes ShmPutImage regression under gnome-shell
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1756cf4d8e80cea47a28786c51cac4a760d6d0cf
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 30 12:26:23 2012 +0100
+
+    sna/dri: Only chain to a triple buffer pageflip sequence
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ba525463fb91900e775c91a54368a9e8b270268b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 30 09:03:36 2012 +0100
+
+    sna/dri: Improve handling of async/sync pageflip transition
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2eab5ef751d7e9caabd7df171cdbb5e784059998
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Sep 30 08:49:34 2012 +0100
+
+    sna: Make sure the CPU bo is destroyed if we fail to mmap it during alloc
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 45b351412b8ba81f4fef2f64540d87cbf16359fd
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 29 21:21:18 2012 +0100
+
+    sna: set_cacheing returns a bool not an error-code
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 33f6f753788398efdf20cde4aa0b4ca402eee8fe
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 29 16:41:00 2012 +0100
+
+    sna/dri: Swallow error from GetMSC
+    
+    Just ignore the error return from WaitVBlank and make up a value for
+    last MSC/SBC similar to an unattached Drawable.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55395
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a873f6d354ebbc52265e686b614027f537a6363a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Sep 29 16:01:58 2012 +0100
+
+    sna: Release the front buffer and drop DRM master early during shutdown
+    
+    If we delay the dropping of DRM master we may complete a VT switch
+    before we are ready and so prevent a second X server from reacquiring
+    master, and dying.
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55446
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit a192f8cbc238d84e058b01b7682abe7ef09d3508
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sat Sep 29 10:51:00 2012 +0100
