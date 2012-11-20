@@ -1,3 +1,12 @@
+xserver-xorg-video-intel (2:2.20.13-1) UNRELEASED; urgency=low
+
+  [ Timo Aaltonen ]
+  * New upstream bugfix release.
+    - Fixes a long-standing bug in UXA pageflip code that was the
+      source of many GPU hangs.
+
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 05 Sep 2012 17:07:07 +0300
+
 xserver-xorg-video-intel (2:2.20.9-0ubuntu2) quantal; urgency=low
 
   [ Maarten Lankhorst ]
@@ -12,19 +21,6 @@ xserver-xorg-video-intel (2:2.20.9-0ubuntu1) quantal; urgency=low
   * Drop dont-run-intel-mode-fini-before-preinit.diff, upstream.
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Sat, 29 Sep 2012 16:45:35 +0300
-
-xserver-xorg-video-intel (2:2.20.9-1) UNRELEASED; urgency=low
-
-  [ Timo Aaltonen ]
-  * New upstream bugfix release.
-    - Fixes a long-standing bug in UXA pageflip code that was the
-      source of many GPU hangs.
-
-  [ Maarten Lankhorst ]
-  * Add patch to fix a valgrind error.
-    - fix-glamor-check.diff
-
- -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 05 Sep 2012 17:07:07 +0300
 
 xserver-xorg-video-intel (2:2.20.8-0ubuntu2) quantal; urgency=low
 
