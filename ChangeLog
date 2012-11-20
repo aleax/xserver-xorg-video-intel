@@ -1,3 +1,687 @@
+commit 8f1afde57dca27e6542b0b8e7c87750f3d6367bf
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Nov 11 16:16:20 2012 +0000
+
+    2.20.13 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b16219a19f48b52dda91f26fcbbbbeda056589ab
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Nov 11 11:05:35 2012 +0000
+
+    sna: Filter out the full-damage marker when undoing redirection
+    
+    ==25902== Invalid read of size 4
+    ==25902==    at 0x4980E13: _list_del (intel_list.h:218)
+    ==25902==    by 0x4980EAB: list_del (intel_list.h:240)
+    ==25902==    by 0x4981F4B: free_list (sna_damage.c:403)
+    ==25902==    by 0x4985131: __sna_damage_destroy (sna_damage.c:1467)
+    ==25902==    by 0x49A5276: sna_render_composite_redirect_done (sna_render.c:1921)
+    ==25902==    by 0x49C68FC: gen2_render_composite_done (gen2_render.c:1136)
+    ==25902==    by 0x497F90F: sna_composite (sna_composite.c:567)
+    ==25902==    by 0x4994725: glyphs_via_mask (sna_glyphs.c:1139)
+    ==25902==    by 0x4995FB7: sna_glyphs (sna_glyphs.c:1688)
+    ==25902==    by 0x8150EB4: ??? (in /usr/bin/Xorg)
+    ==25902==    by 0x813CA38: CompositeGlyphs (in /usr/bin/Xorg)
+    ==25902==    by 0x8146DE1: ??? (in /usr/bin/Xorg)
+    ==25902==  Address 0x7c079ac2 is not stack'd, malloc'd or (recently) free'd
+    
+    Reported-by: bonbons67@internet.lu
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56785
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 69acbb77e8aad3370d5e8d9a9e067c54872d7082
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Nov 11 10:49:59 2012 +0000
+
+    sna: Fix printing of uninitialied value in DBG
+    
+    ==25902== Use of uninitialised value of size 4
+    ==25902==    at 0x423098E: _itoa_word (_itoa.c:196)
+    ==25902==    by 0x4233F7F: vfprintf (vfprintf.c:1602)
+    ==25902==    by 0x42FAFAD: __vsnprintf_chk (vsnprintf_chk.c:65)
+    ==25902==    by 0x81DBE8E: Xvscnprintf (in /usr/bin/Xorg)
+    ==25902==    by 0x81DC8FB: LogVMessageVerb (in /usr/bin/Xorg)
+    ==25902==    by 0x81DCA62: LogVWrite (in /usr/bin/Xorg)
+    ==25902==    by 0x81DCA9B: VErrorF (in /usr/bin/Xorg)
+    ==25902==    by 0x81DC333: ErrorF (in /usr/bin/Xorg)
+    ==25902==    by 0x49B2FA8: trapezoid_span_inplace__x8r8g8b8 (sna_trapezoids.c:5069)
+    ==25902==    by 0x49B3407: trapezoid_span_inplace (sna_trapezoids.c:5166)
+    ==25902==    by 0x49B4C96: sna_composite_trapezoids (sna_trapezoids.c:5619)
+    
+    Reported-by: bonbons67@internet.lu
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56785
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 66e4c8ff40ab8cf722efa4293bb17b0d8f2dfa88
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Nov 11 09:40:09 2012 +0000
+
+    sna: Flush pending rendering before enabling an output
+    
+    This is to prevent falling in the trap of the rendering being delayed
+    until the next client renders some new content.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 94dd0b9ee9f55e7c09b8c0ee18939fa69ce66da2
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Nov 10 16:52:09 2012 +0000
+
+    sna/gen2: Fix use of uninitialised redirection
+    
+    ==29553== Invalid read of size 4
+    ==29553==    at 0x4980E1B: _list_del (intel_list.h:218)
+    ==29553==    by 0x4980EB3: list_del (intel_list.h:240)
+    ==29553==    by 0x4981F53: free_list (sna_damage.c:403)
+    ==29553==    by 0x4985139: __sna_damage_destroy (sna_damage.c:1467)
+    ==29553==    by 0x49A527E: sna_render_composite_redirect_done (sna_render.c:1921)
+    ==29553==    by 0x49C6904: gen2_render_composite_done (gen2_render.c:1136)
+    ==29553==    by 0x497F917: sna_composite (sna_composite.c:567)
+    ==29553==    by 0x8150C41: ??? (in /usr/bin/Xorg)
+    ==29553==    by 0x8142F13: CompositePicture (in /usr/bin/Xorg)
+    ==29553==    by 0x8145F58: ??? (in /usr/bin/Xorg)
+    ==29553==    by 0x81436F2: ??? (in /usr/bin/Xorg)
+    ==29553==    by 0x807965C: ??? (in /usr/bin/Xorg)
+    ==29553==  Address 0x9407e188 is not stack'd, malloc'd or (recently) free'd
+    
+    Reported-by: bonbons67@internet.lu
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56785
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0f1c30818c9d782b066147448bbcc9ac95ac834f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Nov 10 16:52:09 2012 +0000
+
+    sna: Fix use of uninitialised value in DBG
+    
+    ==29553== Use of uninitialised value of size 4
+    ==29553==    at 0x4230964: _itoa_word (_itoa.c:195)
+    ==29553==    by 0x4233F7F: vfprintf (vfprintf.c:1602)
+    ==29553==    by 0x42FAFAD: __vsnprintf_chk (vsnprintf_chk.c:65)
+    ==29553==    by 0x81DBE8E: Xvscnprintf (in /usr/bin/Xorg)
+    ==29553==    by 0x81DC8FB: LogVMessageVerb (in /usr/bin/Xorg)
+    ==29553==    by 0x81DCA62: LogVWrite (in /usr/bin/Xorg)
+    ==29553==    by 0x81DCA9B: VErrorF (in /usr/bin/Xorg)
+    ==29553==    by 0x81DC333: ErrorF (in /usr/bin/Xorg)
+    ==29553==    by 0x49434F0: kgem_create_buffer (kgem.c:4887)
+    ==29553==    by 0x4943B09: kgem_create_buffer_2d (kgem.c:4969)
+    ==29553==    by 0x4943E19: kgem_upload_source_image (kgem.c:5021)
+    ==29553==    by 0x49A0567: upload (sna_render.c:505)
+    ==29553==
+    
+    Reported-by: bonbons67@internet.lu
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56785
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cc2b13c9c05e57dc5004d93b56f332ea95f0a4ef
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Nov 10 11:50:15 2012 +0000
+
+    sna: Specify read/write domains for no-relocation fastpath
+    
+    On review (read triggering BUGs), we do need to supply the domain tracking
+    of the buffers that is being replaced from the relocation path.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 0c4a2bcc3d63ecc02e3a940e38e9a416b51ad0c8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Nov 10 12:34:52 2012 +0000
+
+    sna: Allow snooped buffers to be retained (and reused) between batches
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f5d79b202dd448e61ab6ffce26fe9cbf9051d770
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Nov 10 10:30:04 2012 +0000
+
+    sna/gen2: Add a modicum of fallback DBG
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56785
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 27327633138dce159ca2e91fe5eac1565bd45e1c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 9 17:08:01 2012 +0000
+
+    sna/gen4: Only 965gm suffers the !snoop restriction
+    
+    So fixup the bogus assertion for g4x
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8d3b5ea135fd8f16da2cbfb98041e32c7001a38f
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 9 15:31:03 2012 +0000
+
+    xvmc: Use DRMINTEL_LIBS instead of hardcoding -ldrm_intel
+    
+    Reported-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f040b97b01495aa43f7771ebb8ca5c0d44038bc1
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 8 23:42:10 2012 +0000
+
+    sna: Mark no-reloc write buffers
+    
+    If we bypass the relocation processing, we also then bypass the
+    pending-write analysis, so we need to supply those to the kernel
+    ourselves (to maintain gpu-cpu coherency).
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 85ba7e96268dbb8da4bb34078333695a451c6570
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 8 15:56:13 2012 +0000
+
+    sna: Experiment with using reloc.handle as an index into the execbuffer
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 93d8dddbb92431d6e2c48a17b71cac9f7047902e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 8 09:41:21 2012 +0000
+
+    sna: Set the known offset for the batch as well
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 120fa0ef8d04f5e82e5f7a0636033d3d96efa1e8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Nov 7 17:41:20 2012 +0000
+
+    sna: Support a fast no relocation changed path
+    
+    x11perf -copywinwin10 on gm45 with c2d L9400:
+      before: 553,000 op/s
+      after:  565,000 op/s
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b7d2fcf47a9569d0944097a8be60ca3be72b42f6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 8 08:55:25 2012 +0000
+
+    Remove reliance on hard-coded DRI name
+    
+    This provides for using the existing DDX with future DRI drivers which
+    may break from the traditional names - but only with the help of the
+    user/packager. This scheme needs to be replaced with a robust mechanism
+    for driver loading if AIGLX and co are to be kept.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit cefce9c81585b73db7620e08fcf60c89a8204873
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Nov 6 17:26:34 2012 +0000
+
+    sna: Abandon kernels that do not support execbuffer2
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b2245838c15b54d72557de8facb7cc15d59624ae
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Nov 6 16:32:32 2012 +0000
+
+    sna/gen4: opacity spans requires the per-rectangle flush w/a
+    
+    Note that this is worsened, but not caused, by:
+    
+    commit e1a63de8991a6586b83c06bcb3369208871cf43d
+    Author: Chris Wilson <chris@chris-wilson.co.uk>
+    Date:   Fri Nov 2 09:10:32 2012 +0000
+    
+        sna/gen4+: Prefer GPU spans if the destination is active
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55500
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a0540ebff083974688c863e08203e3d71a297340
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Nov 6 16:00:42 2012 +0000
+
+    sna/gen4: Remove a couple of old, now redundant, w/a flushes
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit aaaa6c356456a4bab595c6e6485893c538064e37
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Nov 6 14:34:51 2012 +0000
+
+    sna/gen4: Flush after pipelined pointer updates (inverted logic!)
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 28bda6707d979bca29dbea04e932819de204d920
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Nov 5 22:30:29 2012 +0000
+
+    sna: Prevent use-after-free during partial move-to-gpu
+    
+    As we reuse the input parameter 'box' to hold the array of boxes that
+    need to be migrated, we need to be careful that we do not later confuse
+    it with the original input parameter. Otherwise,
+    
+    ==1315== Invalid read of size 2
+    ==1315==    at 0x928B091: box_inplace (sna.h:506)
+    ==1315==    by 0x9292278: sna_pixmap_move_area_to_gpu (sna_accel.c:2554)
+    ==1315==    by 0x9292C14: sna_drawable_use_bo (sna_accel.c:2774)
+    ==1315==    by 0x9356C01: gen7_composite_set_target (gen7_render.c:2448)
+    ==1315==    by 0x9357AA2: gen7_render_composite (gen7_render.c:2800)
+    ==1315==    by 0x92DB12E: glyphs_to_dst (sna_glyphs.c:552)
+    ==1315==    by 0x92DEA8D: sna_glyphs (sna_glyphs.c:1664)
+    ==1315==    by 0x4F920E: damageGlyphs (in /tmp/Xorg)
+    ==1315==    by 0x4F2FF6: ProcRenderCompositeGlyphs (in /tmp/Xorg)
+    ==1315==    by 0x437260: Dispatch (in /tmp/Xorg)
+    ==1315==    by 0x426466: main (in /tmp/Xorg)
+    ==1315==  Address 0xd637054 is 20 bytes inside a block of size 208,464 free'd
+    ==1315==    at 0x4C2A2FC: free (in /usr/lib64/valgrind/vgpreload_memcheck-amd64-linux.so)
+    ==1315==    by 0x92CCFCD: __sna_damage_destroy (sna_damage.c:1469)
+    ==1315==    by 0x928AD74: sna_damage_destroy (sna_damage.h:284)
+    ==1315==    by 0x9291CB2: sna_pixmap_move_area_to_gpu (sna_accel.c:2470)
+    ==1315==    by 0x9292C14: sna_drawable_use_bo (sna_accel.c:2774)
+    ==1315==    by 0x9356C01: gen7_composite_set_target (gen7_render.c:2448)
+    ==1315==    by 0x9357AA2: gen7_render_composite (gen7_render.c:2800)
+    ==1315==    by 0x92DB12E: glyphs_to_dst (sna_glyphs.c:552)
+    ==1315==    by 0x92DEA8D: sna_glyphs (sna_glyphs.c:1664)
+    ==1315==    by 0x4F920E: damageGlyphs (in /tmp/Xorg)
+    ==1315==    by 0x4F2FF6: ProcRenderCompositeGlyphs (in /tmp/Xorg)
+    ==1315==    by 0x437260: Dispatch (in /tmp/Xorg)
+    
+    Reported-by: Matti Ruohonen <kiesus@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56591
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit e62b0cbf958d1ad95e4522973253a1ae5c1a4da9
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 2 15:54:20 2012 +0000
+
+    sna: Add a small delay during startup if another master is still active
+    
+    There exists a race with plymouthd that can cause the drm device to
+    reject us as the rightful master, and so cause X to fail to load. Try
+    waiting for a couple of seconds for whatever it was to close before
+    giving in.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit e1a63de8991a6586b83c06bcb3369208871cf43d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 2 09:10:32 2012 +0000
+
+    sna/gen4+: Prefer GPU spans if the destination is active
+    
+    Trying to avoid using the inplace scanline rasteriser for large shapes.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 72bcd8f85c98502b13a67d9c606371afe513584c
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 1 09:30:18 2012 +0000
+
+    sna: Try to reduce ping-pong migration for intermixed render/legacy code paths
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56591
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4e363906a5ef15e1eb0a387cfb6b3445ac185b9d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 22:58:59 2012 +0000
+
+    sna: Set a valid box when checking for GPU bo for BLT composite ops
+    
+    Reported-by: Jiri Slaby <jirislaby@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=47597
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b924831e445615b82a53b10e1849720e933eddfe
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 22:55:56 2012 +0000
+
+    sna: Preserve mode if flushing before a scanline wait
+    
+    Reported-by: Jiri Slaby <jirislaby@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=47597
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 678f9586807071bef813bb69d451f14d2fcbcc04
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 11:26:18 2012 +0000
+
+    sna: assert that the source is not the GTT mapping when uploading
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 783b8048a6d1a9fd0a73ebf7768ae17dc0b21900
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 11:16:09 2012 +0000
+
+    sna: Prefer to use the GPU for uploads if continuing on the GPU
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 74c912880c302889f38fe5898c8038a0ba20e5db
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 10:57:54 2012 +0000
+
+    sna: Fix a typo in a DBG
+    
+    Reported-by: Matti Ruohonen <kiesus@gmail.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f48a821aa73cb40a51baafc6cd2b063f1f91d864
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 10:53:47 2012 +0000
+
+    sna: Add a few DBG tracepoints to screen init/fini
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit bf81d552c4be039fbcf3272387828b1a8b3fbdb8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 31 08:50:44 2012 +0000
+
+    sna: Clamp the drawable box to prevent int16 overflow
+    
+    And assert that the box is valid when migrating.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56591
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 31eb704b2ad7c861ec4e61fb9de0e9592fc6d269
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 26 13:57:30 2012 +0100
+
+    sna: Ensure that the trap is clipped if it ends within the boundary pixel
+    
+    Reported-and-tested-by: Jiri Slaby <jirislaby@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56395
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ef431b2d35c1bf4d77bbcc73688951d22f6aa135
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Oct 25 10:15:39 2012 +0100
+
+    uxa: Drain the DRM event queue before server regeneration
+    
+    Adam Jackson notes that what appeared to be my paranoid ramblings in SNA
+    actually served a purpose - it prevents a server crash following
+    server regen if an indirect client happened to be running at the time
+    (e.g. LIBGL_INDIRECT_ALWAYS=1 glxgears).
+    
+    Reported-by: Adam Jackson <ajax@redhat.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit efb8ff16491ecfb4d9c0c6a718684310d949d8d3
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 24 22:56:20 2012 +0100
+
+    sna: Add missing ValidatePicture() for flattening alphamaps
+    
+    Reported-by: Armands Liepins <armandsl@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56367
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1a489142c8e6a4828348cc9afbd0f430d3b1e2d8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 23 23:43:50 2012 +0100
+
+    sna: Disable RandR hotplug events if Xinerama is enabled
+    
+    Since RandR itself is disabled if Xinerama is enabled, for example with
+    ZaphodHeads, calling RRGetInfo() upon a hotplug event generates an
+    assertion.
+    
+    Reported-by: Stephen Liang <inteldriver@angrywalls.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=55260
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d87c2756db1af6e4af15864ab0f44d1454079236
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 23 15:50:56 2012 +0100
+
+    sna: Beware 16-bit overflow when computing sample areas
+    
+    Reported-by: Ognian Tenchev <drJeckyll@Jeckyll.net>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56324
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c7f48684cdebc24128a5fa5678614af3deb14b3b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 23 15:17:56 2012 +0100
+
+    sna: Only disallow hw sprite scaling on Haswell
+    
+    Earlier chips (Ironlake, Sandybridge and Ivybridge) have integrated
+    sprite scalers.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5c3ea9cf6900855502fcd56214a1b9e180265ff5
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 22 22:35:17 2012 +0100
+
+    sna: Update DRI buffer if attached to the framebuffer for TearFree flips
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4dfc83359d006a4e410e3280003b49683309afc3
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 22 14:56:01 2012 +0100
+
+    sna: Tidy udev install/remove and add a couple of lines of DBG
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55260
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 4d9687d49c9869b2e88d408e5f451c9a1f8f3389
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 22 13:41:54 2012 +0100
+
+    sna: Refactor the common code to enable a timer
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit fb729788872ccb429ddde8a9a4281b1933243096
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 21 14:36:48 2012 +0100
+
+    sna: Only query the system time if we are processing timers
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit c0d6a75f02eb97e5c80a4345ae5c68e9a81d49b6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 21 14:32:14 2012 +0100
+
+    sna: Use the FLUSH_TIMER as the only wakeup timer source
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7bc829c39a203c17053eb728412f698a429ad9fe
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 21 14:24:01 2012 +0100
+
+    sna: Remove the unused inactive eviction
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 9fa6e4aa2daee99ff5f6efc11232de22100bac80
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 21 12:48:06 2012 +0100
+
+    intel: Sanity check that the platform probes points to a i915.ko GEM device
+    
+    References: https://bugs.launchpad.net/ubuntu/+source/xserver-xorg-video-intel/+bug/1069031
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f6eed98fcfea54d50a282ac71ee654645551ae11
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sun Oct 21 10:46:14 2012 +0100
+
+    sna: Mark the to-be-damaged region first, then Process afterwards
+    
+    Damage is processed in two phases, with the actual Damage being appended
+    before the operation is performed so that a copy can be made before
+    modification (e.g. software cursors).
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 60e4e009f90543bfd57f6a4e51ebc5b32b4af33b
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Oct 20 17:59:45 2012 +0100
+
+    sna: Move the source region to the CPU for a self-copy fallback CopyArea
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7ff8b1ba543508f3b209f2ade7655c3aa34d546d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Oct 20 16:23:26 2012 +0100
+
+    2.20.12 release
+    
+    How embarrassing! My fault for rushing :(
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 695b2ce2d32bde191080129b55f9bf8a9d48ee77
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Oct 20 16:19:21 2012 +0100
+
+    uxa: Fixup drm_intel_bo_disable_reuse() typo
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2083e253b3d1ecc218ab1e523e4026ddd4561112
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Oct 20 16:07:11 2012 +0100
+
+    2.20.11 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit fc0ba65f5efe217f2ab5e920255d2133d7c9e5e8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Oct 20 09:29:10 2012 +0100
+
+    uxa: Disable bo reuse after binding to a scanout
+    
+    On gen6+, bo are expected to be LLC by default. However, as using the bo
+    for the scanout causes it to be moved into the uncached domain, this
+    assumption is then false and we should release the bo back to the system
+    rather than spread the uncached buffers around. The most common
+    allocator of scanouts is for pageflipping which are already non-reusable
+    due to the DRI2 export, so there should actually be little impact.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit f4c32af48b0c92a48131090886a6a6b6c45dbe34
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 19 16:29:19 2012 +0100
+
+    sna: Clear the damage along with the BO when forcing the stall for inplace BLT
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56180
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 299232bdb69c8c2b6231905e0f45e9cfe74fe09a
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Oct 19 15:02:00 2012 +0100
+
+    sna: Reorder final checks for using the BO and setting the damage pointer
+    
+    When we return NULL from sna_drawable_use_bo(), the expectation is that
+    the damage pointer is also NULL. However, one SHM path leaked.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56180
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 257abfdabe39629fb458ed65fab11283f7518dc4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 23:34:22 2012 +0100
+
+    sna/gen4: Presume we need a flush upon state change similar to gen5+
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55627
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=55500
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8238c672984e31ae655353d6412e3395a9cdfbe6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 22:16:29 2012 +0100
+
+    sna: secure batches accepted upstream, so simply use runtime detection
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 540666a0a81c7daedbd47830d0932df5e57ec903
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 16:59:05 2012 +0100
+
+    sna/overlay: Move bo out of GTT domain after binding to overlay plane
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 891bae4aa91e85542dcbe38f6ee92141e3efc801
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 11:29:10 2012 +0100
+
+    sna: Use the secure batches to program scanline waits on gen6+
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 41be80a8cae1eb0e294392e5033511bfdf2895c5
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 11:25:52 2012 +0100
+
+    sna: Enable support for SECURE batch buffers
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ba6c82cd9d8089354b90632ca8edbb35cc09b9c4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Oct 17 13:54:51 2012 +0100
+
+    sna/dri: Defensively check for GTT mmap failure during fallback
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 7927f9a351ead1a5593bc91e465706bdd889bb8d
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 16 17:56:30 2012 +0100
+
+    sna/gen7: Filter BLEND flags for CA glyphs
+    
+    Fixes regression from commit c51aaa731e5cffc892e59730194ad7c98789b02b
+    Author: Chris Wilson <chris@chris-wilson.co.uk>
+    Date:   Thu Oct 11 11:36:00 2012 +0100
+    
+        sna/gen7: Replace bogus state tracking assertion
+    
+    The assumption being that we only used the encoded flags for determining
+    the composite state is false for the magic CA pass.
+    
+    Reported-by: Oleksij Rempel <bug-track@fisher-privat.net>
+    Reported-by: Eyal Lotem <eyal.lotem@gmail.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56037
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2ad4aa195571fe214ccffa55e123507f1be66243
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 16 11:59:28 2012 +0100
+
+    sna: Drop fake tiled CPU mapping
+    
+    The only path where this is correct already handles it as the special
+    case that it is, everywhere else it just nonsense.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit b42d81b63f5b6a571faffaadd42c74adce40128a
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Sun Oct 14 09:15:38 2012 +0100
