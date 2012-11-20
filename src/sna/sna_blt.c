@@ -1715,8 +1715,14 @@ sna_blt_composite(struct sna *sna,
 	was_clear = sna_drawable_is_clear(dst->pDrawable);
 	tmp->dst.pixmap = get_drawable_pixmap(dst->pDrawable);
 
-	dst_box.x1 = dst_x; dst_box.x2 = dst_x + width;
-	dst_box.y1 = dst_y; dst_box.y2 = dst_y + height;
+	if (width | height) {
+		dst_box.x1 = dst_x;
+		dst_box.x2 = bound(dst_x, width);
+		dst_box.y1 = dst_y;
+		dst_box.y2 = bound(dst_y, height);
+	} else
+		sna_render_picture_extents(dst, &dst_box);
+
 	bo = sna_drawable_use_bo(dst->pDrawable, PREFER_GPU, &dst_box, &tmp->damage);
 	if (bo && !kgem_bo_can_blt(&sna->kgem, bo)) {
 		DBG(("%s: can not blit to dst, tiling? %d, pitch? %d\n",
@@ -1899,6 +1905,7 @@ put:
 				if (tmp->dst.bo == priv->cpu_bo) {
 					DBG(("%s: forcing the stall to overwrite a busy CPU bo\n", __FUNCTION__));
 					tmp->dst.bo = NULL;
+					tmp->damage = NULL;
 				}
 			}
 		}

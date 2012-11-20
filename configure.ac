@@ -23,7 +23,7 @@
 # Initialize Autoconf
 AC_PREREQ([2.60])
 AC_INIT([xf86-video-intel],
-        [2.20.10],
+        [2.20.13],
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         [xf86-video-intel])
 AC_CONFIG_SRCDIR([Makefile.am])
@@ -290,6 +290,24 @@ AC_ARG_ENABLE(userptr,
 AM_CONDITIONAL(USE_USERPTR, test x$USERPTR = xyes)
 if test "x$USERPTR" = xyes; then
 	AC_DEFINE(USE_USERPTR,1,[Assume USERPTR support])
+fi
+
+AC_ARG_ENABLE(fast-reloc,
+	      AS_HELP_STRING([--enable-fast-reloc],
+			     [Enable use of "fast reloc" (experimental) [default=no]]),
+	      [FASTRELOC="$enableval"],
+	      [FASTRELOC=no])
+if test "x$FASTRELOC" = xyes; then
+	AC_DEFINE(USE_FASTRELOC,1,[Assume "fast reloc" support])
+fi
+
+AC_ARG_ENABLE(handle-lut,
+	      AS_HELP_STRING([--enable-handle-lut],
+			     [Enable use of "handle LUT" (experimental) [default=no]]),
+	      [HANDLE_LUT="$enableval"],
+	      [HANDLE_LUT=no])
+if test "x$HANDLE_LUT" = xyes; then
+	AC_DEFINE(USE_HANDLE_LUT,1,[Assume "handle LUT" support])
 fi
 
 AC_ARG_ENABLE(async-swap,

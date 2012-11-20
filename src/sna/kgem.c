@@ -69,9 +69,22 @@ search_snoop_cache(struct kgem *kgem, unsigned int num_pages, unsigned flags);
 #define DBG_NO_UPLOAD_ACTIVE 0
 #define DBG_NO_MAP_UPLOAD 0
 #define DBG_NO_RELAXED_FENCING 0
+#define DBG_NO_SECURE_BATCHES 0
+#define DBG_NO_FAST_RELOC 0
+#define DBG_NO_HANDLE_LUT 0
 #define DBG_DUMP 0
 
 #define SHOW_BATCH 0
+
+#ifndef USE_FASTRELOC
+#undef DBG_NO_FAST_RELOC
+#define DBG_NO_FAST_RELOC 1
+#endif
+
+#ifndef USE_HANDLE_LUT
+#undef DBG_NO_HANDLE_LUT
+#define DBG_NO_HANDLE_LUT 1
+#endif
 
 /* Worst case seems to be 965gm where we cannot write within a cacheline that
  * is being simultaneously being read by the GPU, or within the sampler
@@ -93,7 +106,13 @@ search_snoop_cache(struct kgem *kgem, unsigned int num_pages, unsigned flags);
 #define IS_USER_MAP(ptr) ((uintptr_t)(ptr) & 2)
 #define __MAP_TYPE(ptr) ((uintptr_t)(ptr) & 3)
 
-#define LOCAL_I915_PARAM_HAS_SEMAPHORES	 20
+#define LOCAL_I915_PARAM_HAS_SEMAPHORES		20
+#define LOCAL_I915_PARAM_HAS_SECURE_BATCHES	23
+#define LOCAL_I915_PARAM_HAS_NO_RELOC		24
+#define LOCAL_I915_PARAM_HAS_HANDLE_LUT		25
+
+#define LOCAL_I915_EXEC_NO_RELOC		(1<<10)
+#define LOCAL_I915_EXEC_HANDLE_LUT		(1<<11)
 
 #define LOCAL_I915_GEM_USERPTR       0x32
 #define LOCAL_IOCTL_I915_GEM_USERPTR DRM_IOWR (DRM_COMMAND_BASE + LOCAL_I915_GEM_USERPTR, struct local_i915_gem_userptr)
@@ -636,6 +655,35 @@ static int gem_param(struct kgem *kgem, int name)
 	return v;
 }
 
+static bool test_has_execbuffer2(struct kgem *kgem)
+{
+	struct drm_i915_gem_execbuffer2 execbuf;
+
+	memset(&execbuf, 0, sizeof(execbuf));
+	execbuf.buffer_count = 1;
+
+	return (drmIoctl(kgem->fd,
+			 DRM_IOCTL_I915_GEM_EXECBUFFER2,
+			 &execbuf) == -1 &&
+		errno == EFAULT);
+}
+
+static bool test_has_no_reloc(struct kgem *kgem)
+{
+	if (DBG_NO_FAST_RELOC)
+		return false;
+
+	return gem_param(kgem, LOCAL_I915_PARAM_HAS_NO_RELOC) > 0;
+}
+
+static bool test_has_handle_lut(struct kgem *kgem)
+{
+	if (DBG_NO_HANDLE_LUT)
+		return false;
+
+	return gem_param(kgem, LOCAL_I915_PARAM_HAS_HANDLE_LUT) > 0;
+}
+
 static bool test_has_semaphores_enabled(struct kgem *kgem)
 {
 	FILE *file;
@@ -672,6 +720,9 @@ static bool is_hw_supported(struct kgem *kgem,
 			    struct pci_device *dev)
 {
 	if (DBG_NO_HW)
+		return false;
+
+	if (!test_has_execbuffer2(kgem))
 		return false;
 
 	if (kgem->gen == (unsigned)-1) /* unknown chipset, assume future gen */
@@ -767,6 +818,14 @@ static bool test_has_userptr(struct kgem *kgem)
 #endif
 }
 
+static bool test_has_secure_batches(struct kgem *kgem)
+{
+	if (DBG_NO_SECURE_BATCHES)
+		return false;
+
+	return gem_param(kgem, LOCAL_I915_PARAM_HAS_SECURE_BATCHES) > 0;
+}
+
 static int kgem_get_screen_index(struct kgem *kgem)
 {
 	struct sna *sna = container_of(kgem, struct sna, kgem);
@@ -812,6 +871,14 @@ void kgem_init(struct kgem *kgem, int fd, struct pci_device *dev, int gen)
 	DBG(("%s: has userptr? %d\n", __FUNCTION__,
 	     kgem->has_userptr));
 
+	kgem->has_no_reloc = test_has_no_reloc(kgem);
+	DBG(("%s: has no-reloc? %d\n", __FUNCTION__,
+	     kgem->has_no_reloc));
+
+	kgem->has_handle_lut = test_has_handle_lut(kgem);
+	DBG(("%s: has handle-lut? %d\n", __FUNCTION__,
+	     kgem->has_handle_lut));
+
 	kgem->has_semaphores = false;
 	if (kgem->has_blt && test_has_semaphores_enabled(kgem))
 		kgem->has_semaphores = true;
@@ -821,6 +888,10 @@ void kgem_init(struct kgem *kgem, int fd, struct pci_device *dev, int gen)
 	kgem->can_blt_cpu = gen >= 30;
 	DBG(("%s: can blt to cpu? %d\n", __FUNCTION__,
 	     kgem->can_blt_cpu));
+
+	kgem->has_secure_batches = test_has_secure_batches(kgem);
+	DBG(("%s: can use privileged batchbuffers? %d\n", __FUNCTION__,
+	     kgem->has_secure_batches));
 
 	if (!is_hw_supported(kgem, dev)) {
 		xf86DrvMsg(kgem_get_screen_index(kgem), X_WARNING,
@@ -1161,6 +1232,7 @@ kgem_add_handle(struct kgem *kgem, struct kgem_bo *bo)
 	     __FUNCTION__, bo->handle, kgem->nexec));
 
 	assert(kgem->nexec < ARRAY_SIZE(kgem->exec));
+	bo->target_handle = kgem->has_handle_lut ? kgem->nexec : bo->handle;
 	exec = memset(&kgem->exec[kgem->nexec++], 0, sizeof(*exec));
 	exec->handle = bo->handle;
 	exec->offset = bo->presumed_offset;
@@ -1195,8 +1267,8 @@ static void kgem_fixup_self_relocs(struct kgem *kgem, struct kgem_bo *bo)
 	int n;
 
 	for (n = 0; n < kgem->nreloc; n++) {
-		if (kgem->reloc[n].target_handle == 0) {
-			kgem->reloc[n].target_handle = bo->handle;
+		if (kgem->reloc[n].target_handle == ~0U) {
+			kgem->reloc[n].target_handle = bo->target_handle;
 			kgem->reloc[n].presumed_offset = bo->presumed_offset;
 			kgem->batch[kgem->reloc[n].offset/sizeof(kgem->batch[0])] =
 				kgem->reloc[n].delta + bo->presumed_offset;
@@ -1949,10 +2021,9 @@ static void kgem_finish_buffers(struct kgem *kgem)
 			used = ALIGN(bo->used + PAGE_SIZE-1, PAGE_SIZE);
 			if (!DBG_NO_UPLOAD_ACTIVE &&
 			    used + PAGE_SIZE <= bytes(&bo->base) &&
-			    (kgem->has_llc || !IS_CPU_MAP(bo->base.map))) {
+			    (kgem->has_llc || !IS_CPU_MAP(bo->base.map) || bo->base.snoop)) {
 				DBG(("%s: retaining upload buffer (%d/%d)\n",
 				     __FUNCTION__, bo->used, bytes(&bo->base)));
-				assert(!bo->base.snoop);
 				bo->used = used;
 				list_move(&bo->base.list,
 					  &kgem->active_buffers);
@@ -1996,9 +2067,11 @@ static void kgem_finish_buffers(struct kgem *kgem)
 				gem_write(kgem->fd, shrink->handle,
 					  0, bo->used, bo->mem);
 
+				shrink->target_handle =
+					kgem->has_handle_lut ? bo->base.target_handle : shrink->handle;
 				for (n = 0; n < kgem->nreloc; n++) {
-					if (kgem->reloc[n].target_handle == bo->base.handle) {
-						kgem->reloc[n].target_handle = shrink->handle;
+					if (kgem->reloc[n].target_handle == bo->base.target_handle) {
+						kgem->reloc[n].target_handle = shrink->target_handle;
 						kgem->reloc[n].presumed_offset = shrink->presumed_offset;
 						kgem->batch[kgem->reloc[n].offset/sizeof(kgem->batch[0])] =
 							kgem->reloc[n].delta + shrink->presumed_offset;
@@ -2148,6 +2221,11 @@ void kgem_reset(struct kgem *kgem)
 	kgem->surface = kgem->batch_size;
 	kgem->mode = KGEM_NONE;
 	kgem->flush = 0;
+	kgem->batch_flags = 0;
+	if (kgem->has_no_reloc)
+		kgem->batch_flags |= LOCAL_I915_EXEC_NO_RELOC;
+	if (kgem->has_handle_lut)
+		kgem->batch_flags |= LOCAL_I915_EXEC_HANDLE_LUT;
 
 	kgem->next_request = __kgem_request_alloc();
 
@@ -2173,7 +2251,7 @@ static int compact_batch_surface(struct kgem *kgem)
 		shrink *= sizeof(uint32_t);
 		for (n = 0; n < kgem->nreloc; n++) {
 			if (kgem->reloc[n].read_domains == I915_GEM_DOMAIN_INSTRUCTION &&
-			    kgem->reloc[n].target_handle == 0)
+			    kgem->reloc[n].target_handle == ~0U)
 				kgem->reloc[n].delta -= shrink;
 
 			if (kgem->reloc[n].offset >= sizeof(uint32_t)*kgem->nbatch)
@@ -2233,11 +2311,14 @@ void _kgem_submit(struct kgem *kgem)
 		kgem->exec[i].relocation_count = kgem->nreloc;
 		kgem->exec[i].relocs_ptr = (uintptr_t)kgem->reloc;
 		kgem->exec[i].alignment = 0;
-		kgem->exec[i].offset = 0;
+		kgem->exec[i].offset = rq->bo->presumed_offset;
 		kgem->exec[i].flags = 0;
-		kgem->exec[i].rsvd1 = 0;
+		kgem->exec[i].rsvd1 = (I915_GEM_DOMAIN_COMMAND |
+				       I915_GEM_DOMAIN_INSTRUCTION |
+				       I915_GEM_DOMAIN_VERTEX);
 		kgem->exec[i].rsvd2 = 0;
 
+		rq->bo->target_handle = kgem->has_handle_lut ? i : handle;
 		rq->bo->exec = &kgem->exec[i];
 		rq->bo->rq = rq; /* useful sanity check */
 		list_add(&rq->bo->request, &rq->buffers);
@@ -2258,7 +2339,7 @@ void _kgem_submit(struct kgem *kgem)
 			execbuf.num_cliprects = 0;
 			execbuf.DR1 = 0;
 			execbuf.DR4 = 0;
-			execbuf.flags = kgem->ring;
+			execbuf.flags = kgem->ring | kgem->batch_flags;
 			execbuf.rsvd1 = 0;
 			execbuf.rsvd2 = 0;
 
@@ -3841,18 +3922,20 @@ uint32_t kgem_add_reloc(struct kgem *kgem,
 		}
 
 		kgem->reloc[index].delta = delta;
-		kgem->reloc[index].target_handle = bo->handle;
+		kgem->reloc[index].target_handle = bo->target_handle;
 		kgem->reloc[index].presumed_offset = bo->presumed_offset;
 
-		if (read_write_domain & 0x7ff) {
+		bo->exec->rsvd1 |= read_write_domain >> 16;
+		if (read_write_domain & 0x7fff) {
 			assert(!bo->snoop || kgem->can_blt_cpu);
+			bo->exec->rsvd1 |= (uint64_t)(read_write_domain & 0x7fff) << 32;
 			kgem_bo_mark_dirty(bo);
 		}
 
 		delta += bo->presumed_offset;
 	} else {
 		kgem->reloc[index].delta = delta;
-		kgem->reloc[index].target_handle = 0;
+		kgem->reloc[index].target_handle = ~0U;
 		kgem->reloc[index].presumed_offset = 0;
 	}
 	kgem->reloc[index].read_domains = read_write_domain >> 16;
@@ -4271,10 +4354,10 @@ void kgem_bo_sync__gtt(struct kgem *kgem, struct kgem_bo *bo)
 
 void kgem_clear_dirty(struct kgem *kgem)
 {
-	struct kgem_request *rq = kgem->next_request;
+	struct list * const buffers = &kgem->next_request->buffers;
 	struct kgem_bo *bo;
 
-	list_for_each_entry(bo, &rq->buffers, request) {
+	list_for_each_entry(bo, buffers, request) {
 		if (!bo->dirty)
 			break;
 
@@ -4580,8 +4663,7 @@ struct kgem_bo *kgem_create_buffer(struct kgem *kgem,
 			assert(bo->base.io);
 			assert(bo->base.refcnt >= 1);
 			assert(bo->mmapped);
-			assert(!bo->base.snoop);
-			assert(!IS_CPU_MAP(bo->base.map) || kgem->has_llc);
+			assert(!IS_CPU_MAP(bo->base.map) || kgem->has_llc || bo->base.snoop);
 
 			if ((bo->write & ~flags) & KGEM_BUFFER_INPLACE) {
 				DBG(("%s: skip write %x buffer, need %x\n",
@@ -4803,7 +4885,7 @@ struct kgem_bo *kgem_create_buffer(struct kgem *kgem,
 			}
 
 			DBG(("%s: created handle=%d for buffer\n",
-			     __FUNCTION__, bo->base.handle));
+			     __FUNCTION__, handle));
 
 			__kgem_bo_init(&bo->base, handle, alloc);
 			debug_alloc(kgem, alloc * PAGE_SIZE);
@@ -4919,10 +5001,10 @@ struct kgem_bo *kgem_create_buffer_2d(struct kgem *kgem,
 
 struct kgem_bo *kgem_upload_source_image(struct kgem *kgem,
 					 const void *data,
-					 BoxPtr box,
+					 const BoxRec *box,
 					 int stride, int bpp)
 {
-	int width = box->x2 - box->x1;
+	int width  = box->x2 - box->x1;
 	int height = box->y2 - box->y1;
 	struct kgem_bo *bo;
 	void *dst;

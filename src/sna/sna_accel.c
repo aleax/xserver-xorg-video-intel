@@ -60,7 +60,6 @@
 #define USE_INPLACE 1
 #define USE_WIDE_SPANS 0 /* -1 force CPU, 1 force GPU */
 #define USE_ZERO_SPANS 1 /* -1 force CPU, 1 force GPU */
-#define USE_INACTIVE 0
 #define USE_CPU_BO 1
 
 #define MIGRATE_ALL 0
@@ -405,8 +404,6 @@ static void sna_pixmap_free_gpu(struct sna *sna, struct sna_pixmap *priv)
 		priv->mapped = false;
 	}
 
-	list_del(&priv->inactive);
-
 	/* and reset the upload counter */
 	priv->source_count = SOURCE_BIAS;
 }
@@ -619,7 +616,6 @@ static struct sna_pixmap *
 _sna_pixmap_init(struct sna_pixmap *priv, PixmapPtr pixmap)
 {
 	list_init(&priv->list);
-	list_init(&priv->inactive);
 	priv->source_count = SOURCE_BIAS;
 	priv->pixmap = pixmap;
 
@@ -1248,7 +1244,6 @@ static void __sna_free_pixmap(struct sna *sna,
 			      struct sna_pixmap *priv)
 {
 	list_del(&priv->list);
-	list_del(&priv->inactive);
 
 	sna_damage_destroy(&priv->gpu_damage);
 	sna_damage_destroy(&priv->cpu_damage);
@@ -1394,6 +1389,9 @@ static inline bool use_cpu_bo_for_upload(struct sna *sna,
 	     flags,
 	     kgem_bo_is_busy(priv->gpu_bo),
 	     kgem_bo_is_busy(priv->cpu_bo)));
+
+	if (!priv->cpu)
+		return true;
 
 	if (flags & (MOVE_WRITE | MOVE_ASYNC_HINT))
 		return true;
@@ -2354,10 +2352,6 @@ static inline struct sna_pixmap *
 sna_pixmap_mark_active(struct sna *sna, struct sna_pixmap *priv)
 {
 	assert(priv->gpu_bo);
-	if (USE_INACTIVE &&
-	    !priv->pinned && priv->gpu_bo->proxy == NULL &&
-	    (priv->create & KGEM_CAN_CREATE_LARGE) == 0)
-		list_move(&priv->inactive, &sna->active_pixmaps);
 	return priv;
 }
 
@@ -2368,8 +2362,11 @@ sna_pixmap_move_area_to_gpu(PixmapPtr pixmap, const BoxRec *box, unsigned int fl
 	struct sna_pixmap *priv = sna_pixmap(pixmap);
 	RegionRec i, r;
 
-	DBG(("%s()\n", __FUNCTION__));
+	DBG(("%s: pixmap=%ld box=(%d, %d), (%d, %d), flags=%x\n",
+	     __FUNCTION__, pixmap->drawable.serialNumber,
+	     box->x1, box->y1, box->x2, box->y2, flags));
 
+	assert(box->x2 > box->x1 && box->y2 > box->y1);
 	assert_pixmap_damage(pixmap);
 	assert_pixmap_contains_box(pixmap, box);
 	assert(!wedged(sna));
@@ -2448,6 +2445,7 @@ sna_pixmap_move_area_to_gpu(PixmapPtr pixmap, const BoxRec *box, unsigned int fl
 					pixmap->devPrivate.ptr = priv->ptr;
 					pixmap->devKind = priv->stride;
 				}
+				assert(!priv->mapped);
 				if (n == 1 && !priv->pinned &&
 				    box->x1 <= 0 && box->y1 <= 0 &&
 				    box->x2 >= pixmap->drawable.width &&
@@ -2492,6 +2490,7 @@ sna_pixmap_move_area_to_gpu(PixmapPtr pixmap, const BoxRec *box, unsigned int fl
 				pixmap->devPrivate.ptr = priv->ptr;
 				pixmap->devKind = priv->stride;
 			}
+			assert(!priv->mapped);
 			ok = sna_write_boxes(sna, pixmap,
 					     priv->gpu_bo, 0, 0,
 					     pixmap->devPrivate.ptr,
@@ -2527,6 +2526,7 @@ sna_pixmap_move_area_to_gpu(PixmapPtr pixmap, const BoxRec *box, unsigned int fl
 				pixmap->devPrivate.ptr = priv->ptr;
 				pixmap->devKind = priv->stride;
 			}
+			assert(!priv->mapped);
 			ok = sna_write_boxes(sna, pixmap,
 					     priv->gpu_bo, 0, 0,
 					     pixmap->devPrivate.ptr,
@@ -2551,7 +2551,8 @@ done:
 	if (flags & MOVE_WRITE) {
 		priv->clear = false;
 		priv->cpu = false;
-		if (priv->cpu_damage == NULL && box_inplace(pixmap, box)) {
+		if (priv->cpu_damage == NULL &&
+		    box_inplace(pixmap, &r.extents)) {
 			DBG(("%s: large operation on undamaged, promoting to full GPU\n",
 			     __FUNCTION__));
 			sna_damage_all(&priv->gpu_damage,
@@ -2582,6 +2583,7 @@ sna_drawable_use_bo(DrawablePtr drawable, unsigned flags, const BoxRec *box,
 	     box->x1, box->y1, box->x2, box->y2,
 	     flags));
 
+	assert(box->x2 > box->x1 && box->y2 > box->y1);
 	assert_pixmap_damage(pixmap);
 	assert_drawable_contains_box(drawable, box);
 
@@ -2791,6 +2793,7 @@ done:
 
 	DBG(("%s: using GPU bo with damage? %d\n",
 	     __FUNCTION__, *damage != NULL));
+	assert(damage == NULL || !DAMAGE_IS_ALL(*damage));
 	assert(priv->gpu_bo->proxy == NULL);
 	assert(priv->clear == false);
 	assert(priv->cpu == false);
@@ -2802,10 +2805,6 @@ use_gpu_bo:
 	assert(priv->gpu_bo->proxy == NULL);
 	priv->clear = false;
 	priv->cpu = false;
-	if (USE_INACTIVE &&
-	    !priv->pinned && (priv->create & KGEM_CAN_CREATE_LARGE) == 0)
-		list_move(&priv->inactive,
-			  &to_sna_from_pixmap(pixmap)->active_pixmaps);
 	*damage = NULL;
 	return priv->gpu_bo;
 
@@ -2859,6 +2858,19 @@ use_cpu_bo:
 		return NULL;
 	}
 
+	if (priv->shm) {
+		assert(!priv->flush);
+		sna_add_flush_pixmap(sna, priv, priv->cpu_bo);
+
+		/* As we may have flushed and retired,, recheck for busy bo */
+		if ((flags & FORCE_GPU) == 0 && !kgem_bo_is_busy(priv->cpu_bo))
+			return NULL;
+	}
+	if (priv->flush) {
+		assert(!priv->shm);
+		sna_add_flush_pixmap(sna, priv, priv->gpu_bo);
+	}
+
 	if (sna_damage_is_all(&priv->cpu_damage,
 			      pixmap->drawable.width,
 			      pixmap->drawable.height)) {
@@ -2873,21 +2885,9 @@ use_cpu_bo:
 			*damage = &priv->cpu_damage;
 	}
 
-	if (priv->shm) {
-		assert(!priv->flush);
-		sna_add_flush_pixmap(sna, priv, priv->cpu_bo);
-
-		/* As we may have flushed and retired,, recheck for busy bo */
-		if ((flags & FORCE_GPU) == 0 && !kgem_bo_is_busy(priv->cpu_bo))
-			return NULL;
-	}
-	if (priv->flush) {
-		assert(!priv->shm);
-		sna_add_flush_pixmap(sna, priv, priv->gpu_bo);
-	}
-
 	DBG(("%s: using CPU bo with damage? %d\n",
 	     __FUNCTION__, *damage != NULL));
+	assert(damage == NULL || !DAMAGE_IS_ALL(*damage));
 	assert(priv->clear == false);
 	return priv->cpu_bo;
 }
@@ -3098,9 +3098,6 @@ sna_pixmap_move_to_gpu(PixmapPtr pixmap, unsigned flags)
 		assert(pixmap_contains_damage(pixmap, priv->cpu_damage));
 		DBG(("%s: uploading %d damage boxes\n", __FUNCTION__, n));
 
-		if (!priv->cpu)
-			flags |= MOVE_ASYNC_HINT;
-
 		ok = false;
 		if (use_cpu_bo_for_upload(sna, priv, flags)) {
 			DBG(("%s: using CPU bo for upload to GPU\n", __FUNCTION__));
@@ -3115,6 +3112,7 @@ sna_pixmap_move_to_gpu(PixmapPtr pixmap, unsigned flags)
 				pixmap->devPrivate.ptr = priv->ptr;
 				pixmap->devKind = priv->stride;
 			}
+			assert(!priv->mapped);
 			if (n == 1 && !priv->pinned &&
 			    (box->x2 - box->x1) >= pixmap->drawable.width &&
 			    (box->y2 - box->y1) >= pixmap->drawable.height) {
@@ -3344,24 +3342,6 @@ static inline void box_add_pt(BoxPtr box, int16_t x, int16_t y)
 		box->y1 = y;
 	else if (box->y2 < y)
 		box->y2 = y;
-}
-
-static int16_t bound(int16_t a, uint16_t b)
-{
-	int v = (int)a + (int)b;
-	if (v > MAXSHORT)
-		return MAXSHORT;
-	return v;
-}
-
-static int16_t clamp(int16_t a, int16_t b)
-{
-	int v = (int)a + (int)b;
-	if (v > MAXSHORT)
-		return MAXSHORT;
-	if (v < MINSHORT)
-		return MINSHORT;
-	return v;
 }
 
 static inline bool box32_to_box16(const Box32Rec *b32, BoxRec *b16)
@@ -5014,16 +4994,17 @@ sna_fallback_copy_boxes(DrawablePtr src, DrawablePtr dst, GCPtr gc,
 	if (!sna_gc_move_to_cpu(gc, dst, region))
 		return;
 
+	RegionTranslate(region, dx, dy);
+	if (!sna_drawable_move_region_to_cpu(src, region, MOVE_READ))
+		goto out_gc;
+	RegionTranslate(region, -dx, -dy);
+
 	if (src == dst ||
 	    get_drawable_pixmap(src) == get_drawable_pixmap(dst)) {
+		DBG(("%s: self-copy\n", __FUNCTION__));
 		if (!sna_drawable_move_to_cpu(dst, MOVE_WRITE | MOVE_READ))
 			goto out_gc;
 	} else {
-		RegionTranslate(region, dx, dy);
-		if (!sna_drawable_move_region_to_cpu(src, region, MOVE_READ))
-			goto out_gc;
-		RegionTranslate(region, -dx, -dy);
-
 		if (!sna_drawable_move_region_to_cpu(dst, region,
 						     drawable_gc_flags(dst, gc, false)))
 			goto out_gc;
@@ -5049,10 +5030,11 @@ sna_copy_area(DrawablePtr src, DrawablePtr dst, GCPtr gc,
 	if (gc->planemask == 0)
 		return NULL;
 
-	DBG(("%s: src=(%d, %d)x(%d, %d)+(%d, %d) -> dst=(%d, %d)+(%d, %d)\n",
+	DBG(("%s: src=(%d, %d)x(%d, %d)+(%d, %d) -> dst=(%d, %d)+(%d, %d); alu=%d, pm=%lx\n",
 	     __FUNCTION__,
 	     src_x, src_y, width, height, src->x, src->y,
-	     dst_x, dst_y, dst->x, dst->y));
+	     dst_x, dst_y, dst->x, dst->y,
+	     gc->alu, gc->planemask));
 
 	if (FORCE_FALLBACK || !ACCEL_COPY_AREA || wedged(sna) ||
 	    !PM_IS_SOLID(dst, gc->planemask))
@@ -13810,6 +13792,15 @@ static bool stop_flush(struct sna *sna, struct sna_pixmap *scanout)
 	return scanout->cpu_damage || scanout->gpu_bo->needs_flush;
 }
 
+static void timer_enable(struct sna *sna, int whom, int interval)
+{
+	if (!sna->timer_active)
+		UpdateCurrentTimeIf();
+	sna->timer_active |= 1 << whom;
+	sna->timer_expire[whom] = TIME + interval;
+	DBG(("%s (time=%ld), starting timer %d\n", __FUNCTION__, (long)TIME, whom));
+}
+
 static bool sna_accel_do_flush(struct sna *sna)
 {
 	struct sna_pixmap *priv;
@@ -13835,17 +13826,12 @@ static bool sna_accel_do_flush(struct sna *sna)
 			sna->timer_expire[FLUSH_TIMER] = TIME + interval;
 			return true;
 		}
-	} else {
-		if (!start_flush(sna, priv)) {
-			DBG(("%s -- no pending write to scanout\n", __FUNCTION__));
-			if (priv)
-				kgem_bo_flush(&sna->kgem, priv->gpu_bo);
-		} else {
-			sna->timer_active |= 1 << FLUSH_TIMER;
-			sna->timer_expire[FLUSH_TIMER] = TIME + interval / 2;
-			DBG(("%s (time=%ld), starting\n", __FUNCTION__, (long)TIME));
-		}
-	}
+	} else if (!start_flush(sna, priv)) {
+		DBG(("%s -- no pending write to scanout\n", __FUNCTION__));
+		if (priv)
+			kgem_bo_flush(&sna->kgem, priv->gpu_bo);
+	} else
+		timer_enable(sna, FLUSH_TIMER, interval/2);
 
 	return false;
 }
@@ -13862,15 +13848,10 @@ static bool sna_accel_do_throttle(struct sna *sna)
 			sna->timer_expire[THROTTLE_TIMER] = TIME + 20;
 			return true;
 		}
-	} else {
-		if (!sna->kgem.need_retire) {
-			DBG(("%s -- no pending activity\n", __FUNCTION__));
-		} else {
-			DBG(("%s (time=%ld), starting\n", __FUNCTION__, (long)TIME));
-			sna->timer_active |= 1 << THROTTLE_TIMER;
-			sna->timer_expire[THROTTLE_TIMER] = TIME + 20;
-		}
-	}
+	} else if (!sna->kgem.need_retire) {
+		DBG(("%s -- no pending activity\n", __FUNCTION__));
+	} else
+		timer_enable(sna, THROTTLE_TIMER, 20);
 
 	return false;
 }
@@ -13885,63 +13866,10 @@ static bool sna_accel_do_expire(struct sna *sna)
 				TIME + MAX_INACTIVE_TIME * 1000;
 			return true;
 		}
-	} else {
-		if (sna->kgem.need_expire) {
-			sna->timer_active |= 1 << EXPIRE_TIMER;
-			sna->timer_expire[EXPIRE_TIMER] =
-				TIME + MAX_INACTIVE_TIME * 1000;
-			DBG(("%s (time=%ld), starting\n", __FUNCTION__, (long)TIME));
-		}
-	}
+	} else if (sna->kgem.need_expire)
+		timer_enable(sna, EXPIRE_TIMER, MAX_INACTIVE_TIME * 1000);
 
 	return false;
-}
-
-static bool sna_accel_do_inactive(struct sna *sna)
-{
-	if (!USE_INACTIVE)
-		return false;
-
-	if (sna->timer_active & (1<<(INACTIVE_TIMER))) {
-		int32_t delta = sna->timer_expire[INACTIVE_TIMER] - TIME;
-		if (delta <= 3) {
-			sna->timer_expire[INACTIVE_TIMER] =
-				TIME + 120 * 1000;
-			DBG(("%s (time=%ld), triggered\n", __FUNCTION__, (long)TIME));
-			return true;
-		}
-	} else {
-		if (!list_is_empty(&sna->active_pixmaps)) {
-			sna->timer_active |= 1 << INACTIVE_TIMER;
-			sna->timer_expire[INACTIVE_TIMER] =
-				TIME + 120 * 1000;
-			DBG(("%s (time=%ld), starting\n", __FUNCTION__, (long)TIME));
-		}
-	}
-
-	return false;
-}
-
-static int32_t sna_timeout(struct sna *sna)
-{
-	int32_t now = TIME, next = 0;
-	int i;
-
-	DBG(("%s: now=%d, active=%08x\n",
-	     __FUNCTION__, (int)now, sna->timer_active));
-	for (i = 0; i < NUM_TIMERS; i++) {
-		if (sna->timer_active & (1 << i)) {
-			int32_t delta = sna->timer_expire[i] - now;
-			DBG(("%s: timer[%d] expires in %d [%d]\n",
-			     __FUNCTION__, i, delta, sna->timer_expire[i]));
-			if (next == 0 || delta < next)
-				next = delta;
-		}
-	}
-
-	DBG(("%s: active=%08x, next=+%d\n",
-	     __FUNCTION__, sna->timer_active, next));
-	return next;
 }
 
 static void sna_accel_post_damage(struct sna *sna)
@@ -14099,105 +14027,6 @@ static void sna_accel_expire(struct sna *sna)
 		sna_accel_disarm_timer(sna, EXPIRE_TIMER);
 }
 
-static void sna_accel_inactive(struct sna *sna)
-{
-	struct sna_pixmap *priv;
-	struct list preserve;
-
-	DBG(("%s (time=%ld)\n", __FUNCTION__, (long)TIME));
-
-#if HAS_FULL_DEBUG
-	{
-		unsigned count, bytes;
-
-		count = bytes = 0;
-		list_for_each_entry(priv, &sna->inactive_clock[1], inactive)
-			if (!priv->pinned)
-				count++, bytes += kgem_bo_size(priv->gpu_bo);
-
-		DBG(("%s: trimming %d inactive GPU buffers, %d bytes\n",
-		    __FUNCTION__, count, bytes));
-
-		count = bytes = 0;
-		list_for_each_entry(priv, &sna->active_pixmaps, inactive) {
-			if (priv->ptr &&
-			    sna_damage_is_all(&priv->gpu_damage,
-					      priv->pixmap->drawable.width,
-					      priv->pixmap->drawable.height)) {
-				count++, bytes += priv->pixmap->devKind * priv->pixmap->drawable.height;
-			}
-		}
-
-		DBG(("%s: trimming %d inactive CPU buffers, %d bytes\n",
-		    __FUNCTION__, count, bytes));
-	}
-#endif
-
-	/* clear out the oldest inactive pixmaps */
-	list_init(&preserve);
-	while (!list_is_empty(&sna->inactive_clock[1])) {
-		priv = list_first_entry(&sna->inactive_clock[1],
-					struct sna_pixmap,
-					inactive);
-		assert((priv->create & KGEM_CAN_CREATE_LARGE) == 0);
-		assert(priv->gpu_bo);
-		assert(!priv->gpu_bo->proxy);
-
-		/* XXX Rather than discarding the GPU buffer here, we
-		 * could mark it purgeable and allow the shrinker to
-		 * reap its storage only under memory pressure.
-		 */
-		list_del(&priv->inactive);
-		if (priv->pinned)
-			continue;
-
-		if (priv->ptr &&
-		    sna_damage_is_all(&priv->gpu_damage,
-				      priv->pixmap->drawable.width,
-				      priv->pixmap->drawable.height)) {
-			DBG(("%s: discarding inactive CPU shadow\n",
-			     __FUNCTION__));
-			sna_damage_destroy(&priv->cpu_damage);
-			list_del(&priv->list);
-
-			assert(priv->cpu_bo == NULL || !priv->cpu_bo->flush);
-			assert(!priv->shm);
-			sna_pixmap_free_cpu(sna, priv);
-			priv->undamaged = false;
-			priv->cpu = false;
-
-			list_add(&priv->inactive, &preserve);
-		} else {
-			DBG(("%s: discarding inactive GPU bo handle=%d\n",
-			     __FUNCTION__, priv->gpu_bo->handle));
-			if (!sna_pixmap_move_to_cpu(priv->pixmap,
-						    MOVE_READ | MOVE_WRITE | MOVE_ASYNC_HINT))
-				list_add(&priv->inactive, &preserve);
-		}
-	}
-
-	/* Age the current inactive pixmaps */
-	sna->inactive_clock[1].next = sna->inactive_clock[0].next;
-	sna->inactive_clock[0].next->prev = &sna->inactive_clock[1];
-	sna->inactive_clock[0].prev->next = &sna->inactive_clock[1];
-	sna->inactive_clock[1].prev = sna->inactive_clock[0].prev;
-
-	sna->inactive_clock[0].next = sna->active_pixmaps.next;
-	sna->active_pixmaps.next->prev = &sna->inactive_clock[0];
-	sna->active_pixmaps.prev->next = &sna->inactive_clock[0];
-	sna->inactive_clock[0].prev = sna->active_pixmaps.prev;
-
-	sna->active_pixmaps.next = preserve.next;
-	preserve.next->prev = &sna->active_pixmaps;
-	preserve.prev->next = &sna->active_pixmaps;
-	sna->active_pixmaps.prev = preserve.prev;
-
-	if (list_is_empty(&sna->inactive_clock[1]) &&
-	    list_is_empty(&sna->inactive_clock[0]) &&
-	    list_is_empty(&sna->active_pixmaps))
-		sna_accel_disarm_timer(sna, INACTIVE_TIMER);
-}
-
 #ifdef DEBUG_MEMORY
 static bool sna_accel_do_debug_memory(struct sna *sna)
 {
@@ -14306,6 +14135,8 @@ static bool sna_picture_init(ScreenPtr screen)
 {
 	PictureScreenPtr ps;
 
+	DBG(("%s\n", __FUNCTION__));
+
 	if (!miPictureInit(screen, NULL, 0))
 		return false;
 
@@ -14333,12 +14164,12 @@ bool sna_accel_init(ScreenPtr screen, struct sna *sna)
 {
 	const char *backend;
 
+	DBG(("%s\n", __FUNCTION__));
+
 	sna_font_key = AllocateFontPrivateIndex();
 
 	list_init(&sna->flush_pixmaps);
 	list_init(&sna->active_pixmaps);
-	list_init(&sna->inactive_clock[0]);
-	list_init(&sna->inactive_clock[1]);
 
 	AddGeneralSocket(sna->kgem.fd);
 
@@ -14443,6 +14274,8 @@ bool sna_accel_init(ScreenPtr screen, struct sna *sna)
 
 void sna_accel_create(struct sna *sna)
 {
+	DBG(("%s\n", __FUNCTION__));
+
 	if (!sna_glyphs_create(sna))
 		goto fail;
 
@@ -14481,6 +14314,8 @@ void sna_accel_watch_flush(struct sna *sna, int enable)
 
 void sna_accel_close(struct sna *sna)
 {
+	DBG(("%s\n", __FUNCTION__));
+
 	sna_composite_close(sna);
 	sna_gradients_close(sna);
 	sna_glyphs_close(sna);
@@ -14500,7 +14335,8 @@ void sna_accel_close(struct sna *sna)
 
 void sna_accel_block_handler(struct sna *sna, struct timeval **tv)
 {
-	UpdateCurrentTimeIf();
+	if (sna->timer_active)
+		UpdateCurrentTimeIf();
 
 	if (sna->kgem.nbatch && kgem_is_idle(&sna->kgem)) {
 		DBG(("%s: GPU idle, flushing\n", __FUNCTION__));
@@ -14525,9 +14361,6 @@ void sna_accel_block_handler(struct sna *sna, struct timeval **tv)
 	assert(!sna->kgem.need_expire ||
 	       sna->timer_active & (1<<(EXPIRE_TIMER)));
 
-	if (sna_accel_do_inactive(sna))
-		sna_accel_inactive(sna);
-
 	if (sna_accel_do_debug_memory(sna))
 		sna_accel_debug_memory(sna);
 
@@ -14537,22 +14370,24 @@ void sna_accel_block_handler(struct sna *sna, struct timeval **tv)
 		sna->watch_flush = 0;
 	}
 
-	if (sna->timer_active) {
+	if (sna->timer_active & 1) {
 		int32_t timeout;
 
 		DBG(("%s: evaluating timers, active=%x\n",
 		     __FUNCTION__, sna->timer_active));
-		timeout = sna_timeout(sna);
-		if (timeout) {
-			if (*tv == NULL) {
-				*tv = &sna->timer_tv;
-				goto set_tv;
-			}
-			if ((*tv)->tv_sec * 1000 + (*tv)->tv_usec / 1000 > timeout) {
+
+		timeout = sna->timer_expire[0] - TIME;
+		DBG(("%s: flush timer expires in %d [%d]\n",
+		     __FUNCTION__, timeout, sna->timer_expire[0]));
+
+		if (*tv == NULL) {
+			*tv = &sna->timer_tv;
+			goto set_tv;
+		}
+		if ((*tv)->tv_sec * 1000 + (*tv)->tv_usec / 1000 > timeout) {
 set_tv:
-				(*tv)->tv_sec = timeout / 1000;
-				(*tv)->tv_usec = timeout % 1000 * 1000;
-			}
+			(*tv)->tv_sec = timeout / 1000;
+			(*tv)->tv_usec = timeout % 1000 * 1000;
 		}
 	}
 }
@@ -14573,4 +14408,5 @@ void sna_accel_wakeup_handler(struct sna *sna)
 
 void sna_accel_free(struct sna *sna)
 {
+	DBG(("%s\n", __FUNCTION__));
 }

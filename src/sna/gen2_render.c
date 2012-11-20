@@ -1614,7 +1614,6 @@ gen2_composite_fallback(struct sna *sna,
 			PicturePtr mask,
 			PicturePtr dst)
 {
-	struct sna_pixmap *priv;
 	PixmapPtr src_pixmap;
 	PixmapPtr mask_pixmap;
 	PixmapPtr dst_pixmap;
@@ -1653,8 +1652,7 @@ gen2_composite_fallback(struct sna *sna,
 	}
 
 	/* If anything is on the GPU, push everything out to the GPU */
-	priv = sna_pixmap(dst_pixmap);
-	if (priv && priv->gpu_damage && !priv->clear) {
+	if (dst_use_gpu(dst_pixmap)) {
 		DBG(("%s: dst is already on the GPU, try to use GPU\n",
 		     __FUNCTION__));
 		return false;
@@ -1689,7 +1687,7 @@ gen2_composite_fallback(struct sna *sna,
 
 	if (too_large(dst_pixmap->drawable.width,
 		      dst_pixmap->drawable.height) &&
-	    (priv == NULL || DAMAGE_IS_ALL(priv->cpu_damage))) {
+	    dst_is_cpu(dst_pixmap)) {
 		DBG(("%s: dst is on the CPU and too large\n", __FUNCTION__));
 		return true;
 	}
@@ -1805,6 +1803,8 @@ gen2_render_composite(struct sna *sna,
 	}
 
 	tmp->op = op;
+
+	sna_render_composite_redirect_init(tmp);
 	if (too_large(tmp->dst.width, tmp->dst.height) ||
 	    tmp->dst.bo->pitch > MAX_3D_PITCH) {
 		if (!sna_render_composite_redirect(sna, tmp,
@@ -1818,6 +1818,8 @@ gen2_render_composite(struct sna *sna,
 				       dst_x, dst_y,
 				       dst->polyMode == PolyModePrecise)) {
 	case -1:
+		DBG(("%s: fallback -- unable to prepare source\n",
+		     __FUNCTION__));
 		goto cleanup_dst;
 	case 0:
 		gen2_composite_solid_init(sna, &tmp->src, 0);
@@ -1841,6 +1843,8 @@ gen2_render_composite(struct sna *sna,
 						       dst_x,  dst_y,
 						       dst->polyMode == PolyModePrecise)) {
 			case -1:
+				DBG(("%s: fallback -- unable to prepare mask\n",
+				     __FUNCTION__));
 				goto cleanup_src;
 			case 0:
 				gen2_composite_solid_init(sna, &tmp->mask, 0);
@@ -1857,8 +1861,12 @@ gen2_render_composite(struct sna *sna,
 			tmp->has_component_alpha = true;
 			if (gen2_blend_op[op].src_alpha &&
 			    (gen2_blend_op[op].src_blend != BLENDFACTOR_ZERO)) {
-				if (op != PictOpOver)
-					return false;
+				if (op != PictOpOver) {
+					DBG(("%s: fallback -- unsupported CA blend (src_blend=%d)\n",
+					     __FUNCTION__,
+					     gen2_blend_op[op].src_blend));
+					goto cleanup_dst;
+				}
 
 				tmp->need_magic_ca_pass = true;
 				tmp->op = PictOpOutReverse;
@@ -1905,8 +1913,11 @@ gen2_render_composite(struct sna *sna,
 		kgem_submit(&sna->kgem);
 		if (!kgem_check_bo(&sna->kgem,
 				   tmp->dst.bo, tmp->src.bo, tmp->mask.bo,
-				   NULL))
+				   NULL)) {
+			DBG(("%s: fallback, operation does not fit into GTT\n",
+			     __FUNCTION__));
 			goto cleanup_mask;
+		}
 	}
 
 	gen2_emit_composite_state(sna, tmp);
@@ -2289,6 +2300,8 @@ gen2_render_composite_spans(struct sna *sna,
 	}
 
 	tmp->base.op = op;
+
+	sna_render_composite_redirect_init(&tmp->base);
 	if (too_large(tmp->base.dst.width, tmp->base.dst.height) ||
 	    tmp->base.dst.bo->pitch > MAX_3D_PITCH) {
 		if (!sna_render_composite_redirect(sna, &tmp->base,
