@@ -1,3 +1,159 @@
+commit 6f675eeaeade4728af566891b2afbe5b44fbdc2e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Dec 3 10:47:35 2012 +0000
+
+    2.20.15 release
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 37eb7343be1aeeb90a860096756603a577df1a77
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Dec 1 09:40:11 2012 +0000
+
+    sna/gen5: Inspired by gen4, reorder the flushing
+    
+    This may not be totally safe, but it is a nicer explanation for random
+    single character corruption.
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=51422
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit a8a99428c14c8aed2082853cc60d0f98a1fa2d86
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Sat Dec 1 09:44:49 2012 +0000
+
+    sna/dri: Unknown generations are given the max value and presume i965_dri.so
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 382bb7bf77fca412fdefd7c304f395d1fe9483b5
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 16:24:30 2012 +0000
+
+    sna/gen6+: Only apply the BLT w/a for self-copies
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1aee8acacfe5869a072d9f20f3b8290b16683260
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 12:17:25 2012 +0000
+
+    sna: Unify gen4 acceleration again
+    
+    After disabling render-to-Y, 965g seems just as happy with the new code
+    paths as g4x.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 5d6dd9c5a7eeb1f879525430ad89ab74d427e469
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 12:12:49 2012 +0000
+
+    Convert generation counter to octal
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 131600020638ef15166361214cd5e1a0c08c2ea6
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 11:43:56 2012 +0000
+
+    sna: Prevent gen4 from rendering to I915_TILING_Y
+    
+    It always seems to end up in a hang...
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit ee4d1873ff504c2150b51d13864164b02b85dd53
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 09:52:49 2012 +0000
+
+    sna/g4x: And remove one more flush point
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1b6c1a30723b1d13e9bd3df0b59a8d75639c89be
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 09:27:57 2012 +0000
+
+    sna: Increase tiling alignment to an even tile
+    
+    Seems to help g4x.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 6aeb6fdf75fa322d8f5ffe393337d8195d7a6a62
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Fri Nov 30 09:03:53 2012 +0000
+
+    sna/g4x: Remove the flush before the pipelined pointer changes
+    
+    This one appears unneeded. Hopefully.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 8be2c6695509809c0ab0c5c014e11dc733f73006
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Thu Nov 29 19:56:15 2012 +0000
+
+    sna/g4x: Emit the flush prior to changing pipelined state
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 2d5d55702bb8eced32d5b8cb3c0cd125fd99d6dc
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Nov 28 15:46:29 2012 +0000
+
+    sna/gen6+: Override PTE cacheability bits for reads
+    
+    This is primarily useful for enabling the render cache for reads from
+    scanouts.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 3ed87945c9e83fefcbda053b616856658bf2ac8e
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Nov 28 11:05:40 2012 +0000
+
+    sna/gen5+: Disable max-vbo address
+    
+    As we do not use this feature, disable it and save the relocation.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit b2c9e9da639a134577485f83e0f66f54e2371b98
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Nov 27 11:32:11 2012 +0000
+
+    sna/blt: Avoid clobbering common state before converting to a BLT
+    
+    In case we need to continue on with the render operation, we need to
+    preserve the existing state.
+    
+    Reported-by: Jiri Slaby <jirislaby@gmail.com>
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=57601
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit 1e06d19a00f5a5a05369deeb3c5ae15b282c0f92
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Nov 26 15:30:09 2012 +0000
+
+    sna: Disable shadow tracking upon regen
+    
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=56608
+    References: https://bugs.freedesktop.org/show_bug.cgi?id=52255
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
+commit d21ed3a6aba5ae227cc5ecd164f3c18bc48c69af
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Nov 26 10:34:28 2012 +0000
+
+    sna: Use a single execobject flag to mark read/write domains
+    
+    Slight modification to the proposed API to only pass the simplified
+    domain tracking now performed by the kernel.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+
 commit 7a904ce839933d57176e013cdad147533c33ca2f
 Author: Chris Wilson <chris@chris-wilson.co.uk>
 Date:   Mon Nov 26 08:48:31 2012 +0000
