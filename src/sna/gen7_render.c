@@ -1132,11 +1132,6 @@ static int gen7_vertex_finish(struct sna *sna)
 					       sna->render.vertex_reloc[i], bo,
 					       I915_GEM_DOMAIN_VERTEX << 16,
 					       0);
-			sna->kgem.batch[sna->render.vertex_reloc[i]+1] =
-				kgem_add_reloc(&sna->kgem,
-					       sna->render.vertex_reloc[i]+1, bo,
-					       I915_GEM_DOMAIN_VERTEX << 16,
-					       sna->render.vertex_used * 4 - 1);
 		}
 
 		sna->render.nvertex_reloc = 0;
@@ -1227,11 +1222,6 @@ static void gen7_vertex_close(struct sna *sna)
 				       sna->render.vertex_reloc[i], bo,
 				       I915_GEM_DOMAIN_VERTEX << 16,
 				       delta);
-		sna->kgem.batch[sna->render.vertex_reloc[i]+1] =
-			kgem_add_reloc(&sna->kgem,
-				       sna->render.vertex_reloc[i]+1, bo,
-				       I915_GEM_DOMAIN_VERTEX << 16,
-				       delta + sna->render.vertex_used * 4 - 1);
 	}
 	sna->render.nvertex_reloc = 0;
 
@@ -1380,10 +1370,10 @@ gen7_bind_bo(struct sna *sna,
 		 (height - 1) << GEN7_SURFACE_HEIGHT_SHIFT);
 	ss[3] = (bo->pitch - 1) << GEN7_SURFACE_PITCH_SHIFT;
 	ss[4] = 0;
-	ss[5] = 0;
+	ss[5] = is_dst && bo->scanout ? 0 : 3 << 16;
 	ss[6] = 0;
 	ss[7] = 0;
-	if (sna->kgem.gen == 75)
+	if (sna->kgem.gen == 075)
 		ss[7] |= HSW_SURFACE_SWIZZLE(RED, GREEN, BLUE, ALPHA);
 
 	kgem_bo_set_binding(bo, format, offset);
@@ -1653,7 +1643,7 @@ static void gen7_emit_vertex_buffer(struct sna *sna,
 		  4*op->floats_per_vertex << GEN7_VB0_BUFFER_PITCH_SHIFT);
 	sna->render.vertex_reloc[sna->render.nvertex_reloc++] = sna->kgem.nbatch;
 	OUT_BATCH(0);
-	OUT_BATCH(0);
+	OUT_BATCH(~0); /* max address: disabled */
 	OUT_BATCH(0);
 
 	sna->render_state.gen7.vb_id |= 1 << id;
@@ -4268,14 +4258,14 @@ static bool gen7_render_setup(struct sna *sna)
 	struct gen7_sampler_state *ss;
 	int i, j, k, l, m;
 
-	if (sna->kgem.gen == 70) {
+	if (sna->kgem.gen == 070) {
 		state->info = &ivb_gt_info;
 		if (DEVICE_ID(sna->PciInfo) & 0xf) {
 			state->info = &ivb_gt1_info;
 			if (DEVICE_ID(sna->PciInfo) & 0x20)
 				state->info = &ivb_gt2_info; /* XXX requires GT_MODE WiZ disabled */
 		}
-	} else if (sna->kgem.gen == 75) {
+	} else if (sna->kgem.gen == 075) {
 		state->info = &hsw_gt_info;
 	} else
 		return false;

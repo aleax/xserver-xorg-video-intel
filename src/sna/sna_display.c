@@ -2621,6 +2621,31 @@ bool sna_mode_pre_init(ScrnInfoPtr scrn, struct sna *sna)
 	return true;
 }
 
+static Bool sna_mode_has_pending_events(struct sna *sna)
+{
+	struct pollfd pfd;
+	pfd.fd = sna->kgem.fd;
+	pfd.events = POLLIN;
+	return poll(&pfd, 1, 0) == 1;
+}
+
+void
+sna_mode_close(struct sna *sna)
+{
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(sna->scrn);
+	int i;
+
+	/* In order to workaround a kernel bug in not honouring O_NONBLOCK,
+	 * check that the fd is readable before attempting to read the next
+	 * event from drm.
+	 */
+	if (sna_mode_has_pending_events(sna))
+		sna_mode_wakeup(sna);
+
+	for (i = 0; i < xf86_config->num_crtc; i++)
+		sna_crtc_disable_shadow(sna, to_sna_crtc(xf86_config->crtc[i]));
+}
+
 void
 sna_mode_fini(struct sna *sna)
 {
@@ -2894,13 +2919,13 @@ sna_wait_for_scanline(struct sna *sna,
 	DBG(("%s: pipe=%d, y1=%d, y2=%d, full_height?=%d\n",
 	     __FUNCTION__, pipe, y1, y2, full_height));
 
-	if (sna->kgem.gen >= 80)
+	if (sna->kgem.gen >= 0100)
 		ret = false;
-	else if (sna->kgem.gen >= 70)
+	else if (sna->kgem.gen >= 070)
 		ret = sna_emit_wait_for_scanline_gen7(sna, pipe, y1, y2, full_height);
-	else if (sna->kgem.gen >= 60)
+	else if (sna->kgem.gen >= 060)
 		ret =sna_emit_wait_for_scanline_gen6(sna, pipe, y1, y2, full_height);
-	else if (sna->kgem.gen >= 40)
+	else if (sna->kgem.gen >= 040)
 		ret = sna_emit_wait_for_scanline_gen4(sna, pipe, y1, y2, full_height);
 	else
 		ret = sna_emit_wait_for_scanline_gen2(sna, pipe, y1, y2, full_height);
