@@ -5,6 +5,7 @@ xserver-xorg-video-intel (2:2.21.6-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * Add valgrind to build-depends.
+  * Enable valgrind by default.
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Fri, 07 Dec 2012 09:33:39 +0200
 
