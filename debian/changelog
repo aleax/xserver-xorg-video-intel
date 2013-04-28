@@ -1,3 +1,11 @@
+xserver-xorg-video-intel (2:2.21.6-0ubuntu4~bpo70+2) wheezy-backports; urgency=low
+
+  * Rebuild for wheezy-backports.
+  * Build with xorg-video-abi-14
+  * Upload to wheezy-graphics-next
+
+ -- Alexey Bondarchuk <alexey.bondarchuk@aleax.me>  Sun, 28 Apr 2013 21:47:52 +0300
+
 xserver-xorg-video-intel (2:2.21.6-0ubuntu4~bpo70+1) wheezy-backports; urgency=low
 
   * Rebuild for wheezy-backports.
